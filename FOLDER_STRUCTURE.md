@@ -4,16 +4,32 @@
 ├── README.md
 ├── SESSION_LOG.md
 ├── config
-│   ├── __init__.py
-│   ├── asgi.py
-│   ├── settings.py
-│   ├── urls.py
-│   └── wsgi.py
+│   ├── __init__.py
+│   ├── asgi.py
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── inventory
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── apps.py
+│   ├── migrations
+│   │   ├── 0001_initial.py
+│   │   ├── 0002_initial.py
+│   │   └── __init__.py
+│   ├── models.py
+│   ├── tests.py
+│   └── views.py
 ├── manage.py
-└── venv
-    ├── bin
-    ├── include
-    ├── lib
-    └── pyvenv.cfg
+└── users
+    ├── __init__.py
+    ├── admin.py
+    ├── apps.py
+    ├── migrations
+    │   ├── 0001_initial.py
+    │   └── __init__.py
+    ├── models.py
+    ├── tests.py
+    └── views.py
 
-6 directories, 11 files
+6 directories, 27 files
