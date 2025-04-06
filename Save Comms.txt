@@ -1,0 +1,11 @@
+curl -X GET https://nazinamu66.erpnext.com/api/method/ping \
+  -H "Authorization: token 6938366d9069054:c60a6c71952e773"
+
+curl -X GET https://nazinamu66.erpnext.com/api/resource/Item \
+  -H "Authorization: token 6938366d9069054:c60a6c71952e773"
+
+  Folder Structure command: 
+  tree -L 2
+
+API Key:  4ac186b9eb526f686bbde17c134a0cf74b19c164717f026d5bd88265
+API SECRET: 3c3dc89051e2292f2331aeb515bdedd05766315e0ce8d455e86dd6d2

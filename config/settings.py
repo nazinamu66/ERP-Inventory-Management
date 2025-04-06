@@ -27,6 +27,11 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# ERPNext API Credentials
+ERP_API_URL = "https://nazinamu66.erpnext.com"
+ERP_API_KEY = "6938366d9069054"
+ERP_API_SECRET = "c60a6c71952e773"
+
 
 # Application definition
 
@@ -41,6 +46,7 @@ INSTALLED_APPS = [
     # Our Apps
     "inventory",
     "users",
+    'erp_integration'
 ]
 
 MIDDLEWARE = [
