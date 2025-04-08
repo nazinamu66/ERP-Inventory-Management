@@ -12,9 +12,10 @@ class Category(models.Model):
 
 
 class Store(models.Model):
-    name = models.CharField(max_length=150)
-    location = models.CharField(max_length=255)
-    manager = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_stores')
+    name = models.CharField(max_length=100, unique=True)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name
@@ -39,16 +40,16 @@ class Supplier(models.Model):
 
 
 class Product(models.Model):
-    name = models.CharField(max_length=150)
-    sku = models.CharField(max_length=50, unique=True)
-    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True)
-    supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True)
+    name = models.CharField(max_length=200)
+    sku = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
+    category = models.CharField(max_length=100, blank=True)
+    unit = models.CharField(max_length=20, default='pcs')  # e.g. pcs, kg, litres
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.name
-
+        return f"{self.name} ({self.sku})"
 
 class Item(models.Model):
     name = models.CharField(max_length=100)
@@ -61,15 +62,16 @@ class Item(models.Model):
 
 
 class Stock(models.Model):
-    item = models.ForeignKey(Item, on_delete=models.CASCADE)
-    store = models.ForeignKey(Store, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField()
+    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='stocks')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stocks')
+    quantity = models.IntegerField(default=0)
+    last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("item", "store")
+        unique_together = ('store', 'product')
 
     def __str__(self):
-        return f"{self.item.name} - {self.store.name}"
+        return f"{self.product.name} @ {self.store.name}: {self.quantity}"
 
 
 class Purchase(models.Model):
