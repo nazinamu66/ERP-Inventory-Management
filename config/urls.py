@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.views.generic import RedirectView
 from users.views import CustomLoginView  # ✅ Correct import from users app
 from users.views import (
     admin_dashboard,
@@ -27,6 +28,7 @@ from users.views import (
 )
 
 urlpatterns = [
+    path('', RedirectView.as_view(url='/login/', permanent=False)),  # Redirect from / to /login/
     path('login/', CustomLoginView.as_view(), name='login'),
     path('admin/', admin.site.urls),
     path('users/', include('users.urls')),
@@ -37,4 +39,3 @@ urlpatterns = [
     path('dashboard/sales/', sales_dashboard, name='sales_dashboard'),
     path('dashboard/', default_dashboard, name='default_dashboard'),
 ]
-

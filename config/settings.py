@@ -64,10 +64,8 @@ ROOT_URLCONF = 'config.urls'
 
 TEMPLATES = [
     {
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
-        'DIRS': [BASE_DIR / "templates"],
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -135,5 +133,7 @@ STATIC_URL = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+
+AUTH_USER_MODEL = 'users.User'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

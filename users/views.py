@@ -4,24 +4,30 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from .models import User
 
-
 class CustomLoginView(LoginView):
     template_name = 'users/login.html'
 
     def get_success_url(self):
         user = self.request.user
-        if user.role == 'admin':
+        
+        # Safely get the 'role' attribute and set a default role if it doesn't exist
+        role = getattr(user, 'role', 'staff')  # Default to 'staff' if 'role' doesn't exist
+
+        if role == 'admin':
             return reverse_lazy('admin_dashboard')
-        elif user.role == 'manager':
+        elif role == 'manager':
             return reverse_lazy('manager_dashboard')
-        elif user.role == 'staff':
+        elif role == 'staff':
             return reverse_lazy('store_dashboard')
-        elif user.role == 'clerk':
+        elif role == 'clerk':
             return reverse_lazy('inventory_dashboard')
-        elif user.role == 'sales':
+        elif role == 'sales':
             return reverse_lazy('sales_dashboard')
+
+        # Default fallback to the dashboard if the role isn't matched
         return reverse_lazy('default_dashboard')
 
+# Dashboard views remain the same
 @login_required
 def admin_dashboard(request):
     return render(request, 'dashboard/admin.html')

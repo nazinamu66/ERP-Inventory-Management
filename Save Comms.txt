@@ -17,3 +17,7 @@ git push origin main
 source venv/bin/activate 
 
 python manage.py runserver
+
+"Continue from where we left off on the Inventory Management System project."
+
+Continue from our last Inventory Management work.

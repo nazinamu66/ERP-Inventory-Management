@@ -10,7 +10,7 @@ class User(AbstractUser):
         ('sales', 'Sales Staff'),
     ]
 
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='staff')  # Default role set to 'staff'
     store = models.ForeignKey("inventory.Store", on_delete=models.SET_NULL, null=True, blank=True)
 
     groups = models.ManyToManyField(Group, related_name="custom_user_groups", blank=True)
