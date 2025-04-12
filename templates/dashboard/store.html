@@ -1,6 +1,8 @@
-{% extends "base.html" %}
+{% extends "dashboard/base.html" %}
+
+{% block title %}Store Dashboard{% endblock %}
 
 {% block content %}
-<h2>Store Dashboard</h2>
-<p>Welcome, {{ request.user.get_full_name }}!</p>
+    <h1>Welcome Store</h1>
+    <p>This is your Store dashboard.</p>
 {% endblock %}

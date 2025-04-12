@@ -17,8 +17,9 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import RedirectView
-from users.views import CustomLoginView  # ✅ Correct import from users app
 from users.views import (
+    CustomLoginView,
+    logout_view,
     admin_dashboard,
     manager_dashboard,
     store_dashboard,
@@ -28,8 +29,9 @@ from users.views import (
 )
 
 urlpatterns = [
-    path('', RedirectView.as_view(url='/login/', permanent=False)),  # Redirect from / to /login/
+    path('', RedirectView.as_view(url='/login/', permanent=False)),
     path('login/', CustomLoginView.as_view(), name='login'),
+    path('logout/', logout_view, name='logout'),
     path('admin/', admin.site.urls),
     path('users/', include('users.urls')),
     path('dashboard/admin/', admin_dashboard, name='admin_dashboard'),

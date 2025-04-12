@@ -1,6 +1,8 @@
-{% extends "base.html" %}
+{% extends "dashboard/base.html" %}
+
+{% block title %}Sales Dashboard{% endblock %}
 
 {% block content %}
-<h2>Sales Dashboard</h2>
-<p>Welcome, {{ request.user.get_full_name }}!</p>
+    <h1>Welcome Sales</h1>
+    <p>This is your Sales dashboard.</p>
 {% endblock %}

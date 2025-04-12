@@ -37,4 +37,29 @@
 - Create initial Git commit
 - Begin implementing custom login and role-based redirect
 
+📅 Date: April 10, 2025
+🕒 Session: Evening Work Session
+✅ What Was Done:
+Fixed TemplateDoesNotExist error for dashboard/base.html by ensuring correct template path and naming.
 
+Resolved NoReverseMatch error for logout by defining logout_view in users/views.py and importing it correctly in config/urls.py.
+
+Removed incorrect import: from . import views from config/urls.py.
+
+Verified all dashboard routes (admin_dashboard, manager_dashboard, etc.) render properly.
+
+Ensured templates for each role (admin.html, manager.html, etc.) are loading without issues.
+
+🛠️ Current Working State:
+All dashboard templates render correctly based on user roles.
+
+Login and logout functionality works.
+
+Clean navigation between login → dashboard → logout.
+
+🔜 Next Steps:
+Start work on user role-specific permissions (e.g., restrict admin pages to admins only).
+
+Implement sidebar or top menu navigation inside base.html.
+
+Begin structuring models for Products and Inventory in inventory/models.py.

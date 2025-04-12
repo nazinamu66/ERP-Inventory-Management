@@ -1,0 +1,10 @@
+<!-- templates/errors/permission_denied.html -->
+{% extends "dashboard/base.html" %}
+
+{% block content %}
+<div class="container text-center mt-5">
+    <h1 class="text-danger">Permission Denied</h1>
+    <p>You do not have permission to view this page.</p>
+    <a href="{% url 'default_dashboard' %}" class="btn btn-primary mt-3">Return to Dashboard</a>
+</div>
+{% endblock %}
