@@ -7,7 +7,18 @@
             <h3 class="mb-0">🔁 Stock Transfer</h3>
         </div>
         <div class="card-body">
-            <form method="post">
+            
+            {% if messages %}
+    <div class="mt-3">
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+            <form method="post" onsubmit="this.querySelector('button[type=submit]').disabled = true;">
                 {% csrf_token %}
                 <div class="form-group mb-3">
                     <label for="{{ form.item.id_for_label }}">Item</label>
@@ -27,7 +38,20 @@
                 </div>
                 <button type="submit" class="btn btn-success">Transfer Stock</button>
             </form>
+            
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('stock-transfer-form');
+        const submitBtn = document.getElementById('submit-btn');
+
+        form.addEventListener('submit', function () {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'Processing...';
+        });
+    });
+</script>
 {% endblock %}

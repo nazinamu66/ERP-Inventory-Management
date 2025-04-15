@@ -8,6 +8,17 @@ from inventory.forms import StockTransferForm
 from django.http import Http404
 
 @login_required
+def stock_transfer_list_view(request):
+    if request.user.is_superuser or request.user.can_view_transfers:
+        transfers = StockTransfer.objects.select_related(
+            'item', 'source_store', 'destination_store'
+        ).order_by('-id')  # newest first
+
+        return render(request, 'dashboard/stock_transfer_list.html', {'transfers': transfers})
+    else:
+        raise Http404("You are not authorized to view this page.")
+
+@login_required
 def stock_transfer_view(request):
     if request.method == 'POST':
         form = StockTransferForm(request.POST)
@@ -20,8 +31,12 @@ def stock_transfer_view(request):
             source_stock = Stock.objects.filter(product=item, store=source_store).first()
             destination_stock = Stock.objects.filter(product=item, store=destination_store).first()
 
-            if not source_stock or source_stock.quantity < quantity:
-                messages.error(request, 'Insufficient stock in source store or item not found.')
+            if not source_stock:
+                messages.error(request, 'Item not found in source store.')
+                return render(request, 'dashboard/stock_transfer.html', {'form': form})
+
+            if source_stock.quantity < quantity:
+                messages.error(request, 'Insufficient stock in source store.')
                 return render(request, 'dashboard/stock_transfer.html', {'form': form})
 
             # Decrease stock from source

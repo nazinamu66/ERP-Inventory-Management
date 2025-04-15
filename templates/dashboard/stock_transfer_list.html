@@ -1,0 +1,38 @@
+{% extends 'dashboard/base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h3 class="mb-0">📋 Stock Transfer History</h3>
+        </div>
+        <div class="card-body">
+            {% if transfers %}
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Quantity</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transfer in transfers %}
+                        <tr>
+                            <td>{{ transfer.item }}</td>
+                            <td>{{ transfer.source_store }}</td>
+                            <td>{{ transfer.destination_store }}</td>
+                            <td>{{ transfer.quantity }}</td>
+                            <td>{{ transfer.created_at|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>No stock transfers found.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

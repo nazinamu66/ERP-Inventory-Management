@@ -13,6 +13,8 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='staff')  # Default role set to 'staff'
     store = models.ForeignKey("inventory.Store", on_delete=models.SET_NULL, null=True, blank=True)
 
+    can_view_transfers = models.BooleanField(default=False)
+
     groups = models.ManyToManyField(Group, related_name="custom_user_groups", blank=True)
     user_permissions = models.ManyToManyField(Permission, related_name="custom_user_permissions", blank=True)
 
