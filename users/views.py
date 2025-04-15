@@ -3,7 +3,7 @@ from django.urls import reverse_lazy
 from django.contrib.auth.views import LoginView
 from .decorators import role_required
 from django.contrib.auth import logout
-
+from inventory.models import Stock
 
 
 class CustomLoginView(LoginView):
@@ -35,9 +35,16 @@ def admin_dashboard(request):
 def manager_dashboard(request):
     return render(request, 'dashboard/manager.html')
 
-@role_required(['staff'])
+@role_required(allowed_roles=['staff'])
 def store_dashboard(request):
-    return render(request, 'dashboard/store.html')
+    store = request.user.store
+    stock_items = Stock.objects.filter(store=store).select_related('product')
+
+    context = {
+        'stock_items': stock_items,
+        'store': store
+    }
+    return render(request, 'dashboard/store.html', context)
 
 @role_required(['clerk'])
 def inventory_dashboard(request):

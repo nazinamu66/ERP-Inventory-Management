@@ -40,4 +40,6 @@ urlpatterns = [
     path('dashboard/inventory/', inventory_dashboard, name='inventory_dashboard'),
     path('dashboard/sales/', sales_dashboard, name='sales_dashboard'),
     path('dashboard/', default_dashboard, name='default_dashboard'),
+    path('dashboard/', include('inventory.urls')),  # Add this line
+
 ]

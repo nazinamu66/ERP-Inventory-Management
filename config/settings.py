@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-5y_(hl)7c3$h4wyy81(h73x9v8anro(m_&-xfp$-92dm7ks-ai
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 # ERPNext API Credentials
 ERP_API_URL = "https://nazinamu66.erpnext.com"
@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "widget_tweaks",
 
     # Our Apps
     "inventory",

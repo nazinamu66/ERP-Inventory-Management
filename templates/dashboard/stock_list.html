@@ -1,0 +1,25 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+  <h1>Stock Management</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Store</th>
+        <th>Product</th>
+        <th>Quantity</th>
+        <th>Last Updated</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for stock in stocks %}
+        <tr>
+          <td>{{ stock.store.name }}</td>
+          <td>{{ stock.product.name }}</td>
+          <td>{{ stock.quantity }}</td>
+          <td>{{ stock.last_updated }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

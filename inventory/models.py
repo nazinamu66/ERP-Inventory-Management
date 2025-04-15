@@ -54,6 +54,7 @@ class Product(models.Model):
 class Item(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)  
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
     sku = models.CharField(max_length=100, unique=True)
 
@@ -63,7 +64,7 @@ class Item(models.Model):
 
 class Stock(models.Model):
     store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='stocks')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stocks')
+    product = models.ForeignKey(Item, on_delete=models.CASCADE, related_name='stocks')
     quantity = models.IntegerField(default=0)
     last_updated = models.DateTimeField(auto_now=True)
 
