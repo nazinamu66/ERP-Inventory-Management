@@ -1,0 +1,18 @@
+{% extends 'dashboard/base.html' %}
+
+{% block title %}
+    {% if product %}Edit Product{% else %}Add Product{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">{% if product %}Edit{% else %}Add{% endif %} Product</h2>
+    <form method="post" class="p-4 border rounded bg-light">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-success">
+            {% if product %}Update{% else %}Create{% endif %}
+        </button>
+    </form>
+</div>
+{% endblock %}

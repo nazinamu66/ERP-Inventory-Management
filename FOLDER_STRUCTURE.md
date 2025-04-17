@@ -42,9 +42,13 @@
 │   │   ├── __init__.cpython-313.pyc
 │   │   ├── admin.cpython-313.pyc
 │   │   ├── apps.cpython-313.pyc
-│   │   └── models.cpython-313.pyc
+│   │   ├── forms.cpython-313.pyc
+│   │   ├── models.cpython-313.pyc
+│   │   ├── urls.cpython-313.pyc
+│   │   └── views.cpython-313.pyc
 │   ├── admin.py
 │   ├── apps.py
+│   ├── forms.py
 │   ├── integrations
 │   │   └── erpnext
 │   ├── management
@@ -52,22 +56,39 @@
 │   ├── migrations
 │   │   ├── 0001_initial.py
 │   │   ├── 0002_initial.py
+│   │   ├── 0003_alter_stock_product.py
+│   │   ├── 0004_item_price.py
+│   │   ├── 0005_remove_stocktransfer_transfer_date_and_more.py
+│   │   ├── 0006_product_quantity.py
+│   │   ├── 0007_stockadjustment.py
+│   │   ├── 0008_stockadjustment_store.py
 │   │   ├── __init__.py
 │   │   └── __pycache__
 │   ├── models.py
 │   ├── services
 │   │   └── erpnext_service.py
 │   ├── tests.py
+│   ├── urls.py
 │   └── views.py
 ├── manage.py
 ├── templates
 │   ├── dashboard
 │   │   ├── admin.html
+│   │   ├── base.html
 │   │   ├── default.html
 │   │   ├── inventory.html
 │   │   ├── manager.html
+│   │   ├── product_confirm_delete.html
+│   │   ├── product_form.html
+│   │   ├── product_list.html
 │   │   ├── sales.html
+│   │   ├── stock_adjustment_form.html
+│   │   ├── stock_list.html
+│   │   ├── stock_transfer.html
+│   │   ├── stock_transfer_list.html
 │   │   └── store.html
+│   ├── errors
+│   │   └── permission_denied.html
 │   └── users
 │       └── login.html
 ├── users
@@ -76,12 +97,18 @@
 │   │   ├── __init__.cpython-313.pyc
 │   │   ├── admin.cpython-313.pyc
 │   │   ├── apps.cpython-313.pyc
-│   │   └── models.cpython-313.pyc
+│   │   ├── decorators.cpython-313.pyc
+│   │   ├── models.cpython-313.pyc
+│   │   ├── urls.cpython-313.pyc
+│   │   └── views.cpython-313.pyc
 │   ├── admin.py
 │   ├── apps.py
+│   ├── decorators.py
 │   ├── migrations
 │   │   ├── 0001_initial.py
 │   │   ├── 0002_alter_user_role.py
+│   │   ├── 0003_alter_user_role.py
+│   │   ├── 0004_user_can_view_transfers.py
 │   │   ├── __init__.py
 │   │   └── __pycache__
 │   ├── models.py
@@ -109,4 +136,4 @@
     │   └── python3.13
     └── pyvenv.cfg
 
-29 directories, 82 files
+30 directories, 108 files

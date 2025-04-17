@@ -1,32 +1,53 @@
-{% extends 'dashboard/base.html' %}
+{% extends "dashboard/base.html" %}
+
+{% block title %}Product List{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h2>Product List</h2>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Product Name</th>
-                <th>SKU</th>
-                <th>Category</th>
-                <th>Stock</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for product in products %}
-            <tr>
-                <td>{{ product.name }}</td>
-                <td>{{ product.sku }}</td>
-                <td>{{ product.category }}</td>
-                <td>{{ product.stock }}</td>
-                <td>
-                    <a href="{% url 'inventory:product_detail' product.id %}" class="btn btn-info btn-sm">View</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-{% endblock %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Products</h2>
+        <a href="{% url 'inventory:product_create' %}" class="btn btn-success">Add Product</a>
+      </div>
 
+    {% if products %}
+        <table class="table table-bordered table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th>SKU</th>
+                    <th>Category</th>
+                    <th>Unit</th>
+                    <th>Created</th>
+                    <th>Status</th>
+                    <th>Quantity</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                    <tr>
+                        <td>{{ product.name }}</td>
+                        <td>{{ product.sku }}</td>
+                        <td>{{ product.category|default:"—" }}</td>
+                        <td>{{ product.unit }}</td>
+                        <td>{{ product.created_at|date:"Y-m-d" }}</td>
+                        <td>
+                            {% if product.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>{{product.quantity}}</td> 
+                        <td>
+                          <a href="{% url 'inventory:product_edit' product.id %}" class="btn btn-sm btn-outline-primary">Edit</a>
+                          <a href="{% url 'inventory:product_delete' product.id %}" class="btn btn-sm btn-outline-danger">Delete</a>
+
+                      </td>
+                      
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No products found.</p>
+    {% endif %}
+{% endblock %}

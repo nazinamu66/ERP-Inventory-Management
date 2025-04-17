@@ -1,5 +1,6 @@
 from django.db import models
 from users.models import User
+from django.conf import settings
 
 
 class Category(models.Model):
@@ -20,11 +21,6 @@ class Store(models.Model):
         return self.name
 
 
-
-# inventory/models.py
-
-from django.db import models
-
 class Supplier(models.Model):
     name = models.CharField(max_length=255)
     contact_email = models.EmailField(blank=True, null=True)
@@ -38,12 +34,26 @@ class Supplier(models.Model):
         return self.name
 
 
+class StockAdjustment(models.Model):
+    product = models.ForeignKey('Item', on_delete=models.CASCADE)
+    quantity = models.IntegerField(help_text="Use negative numbers to decrease stock.")
+    store = models.ForeignKey(Store, on_delete=models.CASCADE, null=True, blank=True, default=None)
+    reason = models.CharField(max_length=255, help_text="E.g. Damaged items, manual correction, stock added")
+    adjusted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.item.name}: {self.quantity:+} by {self.adjusted_by}"
+
+
 class Product(models.Model):
     name = models.CharField(max_length=200)
     sku = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
     category = models.CharField(max_length=100, blank=True)
     unit = models.CharField(max_length=20, default='pcs')  # e.g. pcs, kg, litres
+    quantity = models.PositiveBigIntegerField(default=0)
+    total_quantity = models.PositiveBigIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -107,7 +117,7 @@ class StockTransfer(models.Model):
 class PurchaseOrder(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
     date = models.DateField(auto_now_add=True)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
 
     def __str__(self):
         return f"PO-{self.id} - {self.supplier.name}"

@@ -1,0 +1,14 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Adjust Stock{% endblock %}
+
+{% block content %}
+  <div class="container mt-4">
+    <h2>Stock Adjustment</h2>
+    <form method="post" action="{% url 'inventory:stock_adjustment_create' %}">
+        {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="btn btn-primary">Submit Adjustment</button>
+    </form>
+  </div>
+{% endblock %}
