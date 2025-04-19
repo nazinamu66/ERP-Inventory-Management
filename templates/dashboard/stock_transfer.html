@@ -22,7 +22,7 @@
                 {% csrf_token %}
                 <div class="form-group mb-3">
                     <label for="{{ form.item.id_for_label }}">Item</label>
-                    {{ form.item|add_class:"form-control" }}
+                    {{ form.product|add_class:"form-control" }}
                 </div>
                 <div class="form-group mb-3">
                     <label for="{{ form.source_store.id_for_label }}">Source Store</label>

@@ -138,3 +138,6 @@ STATIC_URL = 'static/'
 AUTH_USER_MODEL = 'users.User'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+LOGIN_URL = '/login/'  # This matches the URL for your CustomLoginView
+

@@ -1,30 +1,37 @@
 from django import forms
-from inventory.models import StockTransfer, Store, Item
-from .models import Product
-from .models import StockAdjustment
-
-from django import forms
-from .models import StockAdjustment, Product, Store
+from inventory.models import StockTransfer, Store, Product, StockAdjustment
 
 class StockAdjustmentForm(forms.ModelForm):
+    ADJUSTMENT_CHOICES = [
+        ('add', 'Add'),
+        ('subtract', 'Subtract')
+    ]
+
+    adjustment_type = forms.ChoiceField(
+        choices=ADJUSTMENT_CHOICES,
+        widget=forms.RadioSelect,  # Or Select
+        required=True
+    )
+
     class Meta:
         model = StockAdjustment
-        fields = ['product', 'store', 'quantity', 'reason']
+        fields = ['product', 'quantity', 'store', 'reason', 'adjustment_type']
         widgets = {
-            'reason': forms.Textarea(attrs={'rows': 3}),
+            'quantity': forms.NumberInput(attrs={'min': 1}),
         }
 
     def clean_quantity(self):
-        quantity = self.cleaned_data['quantity']
-        if quantity <= 0:
-            raise forms.ValidationError("Quantity must be a positive number.")
-        return quantity
+        qty = self.cleaned_data['quantity']
+        if qty <= 0:
+            raise forms.ValidationError("Please enter a positive number.")
+        return qty
+
 
 
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
-        fields = ['name', 'sku', 'description', 'category', 'unit', 'quantity' ,'is_active']
+        fields = ['name', 'sku', 'description', 'category', 'unit', 'quantity', 'is_active']
         widgets = {
             'description': forms.Textarea(attrs={'rows': 3}),
         }
@@ -32,4 +39,4 @@ class ProductForm(forms.ModelForm):
 class StockTransferForm(forms.ModelForm):
     class Meta:
         model = StockTransfer
-        fields = ['item', 'source_store', 'destination_store', 'quantity']
+        fields = ['product', 'source_store', 'destination_store', 'quantity']

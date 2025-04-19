@@ -45,16 +45,31 @@
             <a class="nav-link" href="{% url 'store_dashboard' %}">Dashboard</a>
             <a class="nav-link" href="{% url 'inventory:product_list' %}">Products</a>
             <a class="nav-link" href="{% url 'inventory:stock_list' %}">Stock</a>
+            <a class="nav-link" href="{% url 'inventory:stock_adjustment_create' %}">Stock Adjustment</a>
     
             {% if request.user.can_view_transfers or request.user.is_superuser %}
-                <a class="nav-link" href="{% url 'inventory:stock_transfer_list' %}">Stock Transfers</a>
+                <a class="nav-link" href="{% url 'inventory:stock_transfer' %}">Stock Transfers</a>
+            {% endif %}
+    
+            {% if request.user.is_superuser or request.user.role == 'manager' %}
+                <!-- User Management Dropdown -->
+                <a class="nav-link" data-bs-toggle="collapse" href="#userManagementMenu" role="button" aria-expanded="false" aria-controls="userManagementMenu">
+                    User Management
+                </a>
+                <div class="collapse" id="userManagementMenu">
+                    <div class="nav flex-column ms-3">
+                        <a class="nav-link" href="{% url 'users:user_list' %}">Manage Users</a>
+                        <a class="nav-link" href="{% url 'users:user_create' %}">Add User</a>
+                        <!-- Add more options here as needed -->
+                    </div>
+                </div>
             {% endif %}
     
             {% if request.user.is_superuser %}
                 <a class="nav-link" href="{% url 'admin:index' %}">Admin Panel</a>
             {% endif %}
         </nav>
-    </div>
+    </div>    
     
     <div class="main">
         <div class="top-nav">
@@ -66,5 +81,7 @@
         <!-- Dashboard content goes here -->
         {% endblock %}
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>

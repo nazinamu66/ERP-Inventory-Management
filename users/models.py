@@ -10,10 +10,12 @@ class User(AbstractUser):
         ('sales', 'Sales Staff'),
     ]
 
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='staff')  # Default role set to 'staff'
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='staff')
     store = models.ForeignKey("inventory.Store", on_delete=models.SET_NULL, null=True, blank=True)
 
     can_view_transfers = models.BooleanField(default=False)
+    can_adjust_stock = models.BooleanField(default=False)
+    can_transfer_stock = models.BooleanField(default=False)
 
     groups = models.ManyToManyField(Group, related_name="custom_user_groups", blank=True)
     user_permissions = models.ManyToManyField(Permission, related_name="custom_user_permissions", blank=True)

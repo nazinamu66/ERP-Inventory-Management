@@ -2,8 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db import transaction
-from django.http import HttpResponse, Http404
-
+from django.http import HttpResponse
 from inventory.models import StockTransfer, Stock
 from inventory.forms import StockTransferForm
 from .forms import StockAdjustmentForm, ProductForm
@@ -40,11 +39,13 @@ def default_dashboard(request):
     return render(request, 'dashboard/default.html')
 
 
+@login_required
 def product_list(request):
     products = Product.objects.filter(is_active=True).order_by('-created_at')
     return render(request, 'dashboard/product_list.html', {'products': products})
 
 
+@login_required
 def product_create(request):
     if request.method == 'POST':
         form = ProductForm(request.POST)
@@ -56,6 +57,7 @@ def product_create(request):
     return render(request, 'dashboard/product_form.html', {'form': form, 'product': None})
 
 
+@login_required
 def product_edit(request, pk):
     product = get_object_or_404(Product, pk=pk)
     if request.method == 'POST':
@@ -68,6 +70,7 @@ def product_edit(request, pk):
     return render(request, 'dashboard/product_form.html', {'form': form, 'product': product})
 
 
+@login_required
 def product_delete(request, pk):
     product = get_object_or_404(Product, pk=pk)
     if request.method == 'POST':
@@ -77,6 +80,7 @@ def product_delete(request, pk):
     return render(request, 'dashboard/product_confirm_delete.html', {'product': product})
 
 
+@login_required
 def stock_list(request):
     stocks = Stock.objects.select_related('store', 'product')
     return render(request, 'dashboard/stock_list.html', {'stocks': stocks})
@@ -86,10 +90,10 @@ def stock_list(request):
 def stock_transfer_list_view(request):
     if not getattr(request.user, 'can_view_transfers', False):
         messages.error(request, "You do not have permission to view stock transfers.")
-        return redirect('dashboard')
+        return render(request, 'errors/permission_denied.html', status=403)
 
     transfers = StockTransfer.objects.select_related(
-        'item', 'source_store', 'destination_store'
+        'product', 'source_store', 'destination_store'
     ).order_by('-id')
 
     return render(request, 'dashboard/stock_transfer_list.html', {'transfers': transfers})
@@ -97,19 +101,23 @@ def stock_transfer_list_view(request):
 
 @login_required
 def stock_transfer_view(request):
+    if not request.user.can_transfer_stock and not request.user.is_superuser:
+        messages.error(request, "You do not have permission to transfer stock.")
+        return render(request, 'errors/permission_denied.html', status=403)
+
     if request.method == 'POST':
         form = StockTransferForm(request.POST)
         if form.is_valid():
-            item = form.cleaned_data['item']
+            product = form.cleaned_data['product']
             source_store = form.cleaned_data['source_store']
             destination_store = form.cleaned_data['destination_store']
             quantity = form.cleaned_data['quantity']
 
-            source_stock = Stock.objects.filter(product=item, store=source_store).first()
-            destination_stock = Stock.objects.filter(product=item, store=destination_store).first()
+            source_stock = Stock.objects.filter(product=product, store=source_store).first()
+            destination_stock = Stock.objects.filter(product=product, store=destination_store).first()
 
             if not source_stock:
-                messages.error(request, 'Item not found in source store.')
+                messages.error(request, 'Product not found in source store.')
                 return render(request, 'dashboard/stock_transfer.html', {'form': form})
 
             if source_stock.quantity < quantity:
@@ -126,13 +134,13 @@ def stock_transfer_view(request):
                         destination_stock.save()
                     else:
                         Stock.objects.create(
-                            product=item,
+                            product=product,
                             store=destination_store,
                             quantity=quantity
                         )
 
                     StockTransfer.objects.create(
-                        item=item,
+                        product=product,
                         source_store=source_store,
                         destination_store=destination_store,
                         quantity=quantity
@@ -150,8 +158,11 @@ def stock_transfer_view(request):
 
 
 @login_required
-@login_required
 def stock_adjustment_create(request):
+    if not request.user.can_adjust_stock and not request.user.is_superuser:
+        messages.error(request, "You do not have permission to adjust stock.")
+        return render(request, 'errors/permission_denied.html', status=403)
+
     if request.method == 'POST':
         form = StockAdjustmentForm(request.POST)
         if form.is_valid():
@@ -159,9 +170,8 @@ def stock_adjustment_create(request):
             product = form.cleaned_data['product']
             quantity = form.cleaned_data['quantity']
             reason = form.cleaned_data['reason']
-            adjustment_type = 'add' if quantity > 0 else 'subtract'
+            adjustment_type = form.cleaned_data['adjustment_type']  # ✅ Use actual form input
 
-            # Get stock record
             stock_entry = Stock.objects.filter(product=product, store=store).first()
             if not stock_entry:
                 messages.error(request, "No stock entry for this product in the selected store.")
@@ -173,23 +183,23 @@ def stock_adjustment_create(request):
                 messages.error(request, "Insufficient stock in the selected store.")
                 return redirect('inventory:stock_adjustment_create')
 
+            # Apply the direction
+            adjusted_quantity = abs(quantity) if adjustment_type == 'add' else -abs(quantity)
+
             try:
                 with transaction.atomic():
                     adjustment = StockAdjustment.objects.create(
                         store=store,
                         product=product,
-                        quantity=quantity,
+                        quantity=adjusted_quantity,  # ✅ Save the correct signed quantity
                         reason=reason,
-                        adjustment_type=adjustment_type
+                        adjusted_by=request.user  # ✅ Don't forget the user
                     )
 
-                    # Update store stock
-                    new_quantity = store_stock + quantity if adjustment_type == 'add' else store_stock - quantity
-                    stock_entry.quantity = new_quantity
+                    stock_entry.quantity += adjusted_quantity
                     stock_entry.save()
 
-                    # Update product total quantity
-                    product.total_quantity += quantity if adjustment_type == 'add' else -quantity
+                    product.total_quantity += adjusted_quantity
                     product.save()
 
                 messages.success(request, "Stock adjustment successfully recorded!")
@@ -208,5 +218,4 @@ def stock_adjustment_create(request):
 
 @login_required
 def stock_adjustment_list(request):
-    # Placeholder
     return HttpResponse("Stock Adjustment List Coming Soon")

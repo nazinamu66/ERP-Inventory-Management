@@ -10,7 +10,7 @@
                 <table class="table table-bordered">
                     <thead>
                         <tr>
-                            <th>Item</th>
+                            <th>Product</th>
                             <th>From</th>
                             <th>To</th>
                             <th>Quantity</th>
@@ -20,7 +20,7 @@
                     <tbody>
                         {% for transfer in transfers %}
                         <tr>
-                            <td>{{ transfer.item }}</td>
+                            <td>{{ transfer.product }}</td>
                             <td>{{ transfer.source_store }}</td>
                             <td>{{ transfer.destination_store }}</td>
                             <td>{{ transfer.quantity }}</td>

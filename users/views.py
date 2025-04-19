@@ -1,9 +1,88 @@
-from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
+from django.contrib import messages
 from django.contrib.auth.views import LoginView
 from .decorators import role_required
 from django.contrib.auth import logout
 from inventory.models import Stock
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect, get_object_or_404
+from inventory.models import Store
+from .models import User
+from .forms import UserForm
+from django.contrib.auth.decorators import login_required, user_passes_test
+
+def is_admin_or_manager(user):
+    return user.is_authenticated and (user.role == 'admin' or user.role == 'manager')
+
+@login_required
+@user_passes_test(is_admin_or_manager)
+def user_create(request):
+    if not request.user.is_superuser and request.user.role != 'manager':
+        return render(request, 'errors/permission_denied.html', status=403)
+
+    if request.method == 'POST':
+        form = UserForm(request.POST)
+        if form.is_valid():
+            user = form.save(commit=False)
+            if request.user.role == 'manager':
+                user.store = request.user.store
+            user.set_password('changeme')  # default password
+            user.save()
+            return redirect('users:user_list')
+    else:
+        form = UserForm()
+        if request.user.role == 'manager':
+            form.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
+            form.fields['store'].initial = request.user.store
+
+    return render(request, 'users/user_form.html', {'form': form})
+
+
+@login_required
+def user_list(request):
+    if not request.user.is_superuser and request.user.role != 'manager':
+        return render(request, 'errors/permission_denied.html', status=403)
+
+    if request.user.role == 'manager':
+        users = User.objects.filter(store=request.user.store)
+    else:
+        users = User.objects.all()
+
+    return render(request, 'users/user_list.html', {'users': users})
+
+
+
+@login_required
+def user_edit(request, pk):
+    user = get_object_or_404(User, pk=pk)
+
+    if not request.user.is_superuser and (request.user.role != 'manager' or user.store != request.user.store):
+        return render(request, 'errors/permission_denied.html', status=403)
+
+    if request.method == 'POST':
+        form = UserForm(request.POST, instance=user)
+        if form.is_valid():
+            form.save()
+            return redirect('users:user_list')
+    else:
+        form = UserForm(instance=user)
+
+    return render(request, 'users/user_form.html', {'form': form})
+
+
+@login_required
+def user_delete(request, pk):
+    user = get_object_or_404(User, pk=pk)
+
+    if not request.user.is_superuser and (request.user.role != 'manager' or user.store != request.user.store):
+        return render(request, 'errors/permission_denied.html', status=403)
+
+    if request.method == 'POST':
+        user.delete()
+        return redirect('users:user_list')
+
+    return render(request, 'users/user_confirm_delete.html', {'user': user})
+
 
 
 class CustomLoginView(LoginView):
