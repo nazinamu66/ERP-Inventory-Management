@@ -9,6 +9,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from inventory.models import Store
 from .models import User
 from .forms import UserForm
+from inventory.models import AuditLog  # add at top if not already
 from django.contrib.auth.decorators import login_required, user_passes_test
 
 def is_admin_or_manager(user):
@@ -21,19 +22,21 @@ def user_create(request):
         return render(request, 'errors/permission_denied.html', status=403)
 
     if request.method == 'POST':
-        form = UserForm(request.POST)
+        form = UserForm(request.POST, request=request)
         if form.is_valid():
             user = form.save(commit=False)
             if request.user.role == 'manager':
                 user.store = request.user.store
             user.set_password('changeme')  # default password
             user.save()
+            AuditLog.objects.create(
+                user=request.user,
+                action='create_user',
+                description=f"{request.user.username} created user {user.username} ({user.role}) for store {user.store.name if user.store else 'N/A'}"
+            )
             return redirect('users:user_list')
     else:
-        form = UserForm()
-        if request.user.role == 'manager':
-            form.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
-            form.fields['store'].initial = request.user.store
+        form = UserForm(request=request)
 
     return render(request, 'users/user_form.html', {'form': form})
 
@@ -78,6 +81,11 @@ def user_delete(request, pk):
         return render(request, 'errors/permission_denied.html', status=403)
 
     if request.method == 'POST':
+        AuditLog.objects.create(
+            user=request.user,
+            action='delete_user',
+            description=f"{request.user.username} deleted user {user.username} ({user.role}) from store {user.store.name if user.store else 'N/A'}"
+        )
         user.delete()
         return redirect('users:user_list')
 

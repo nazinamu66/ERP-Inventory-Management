@@ -1,0 +1,59 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Purchase Order Details{% endblock %}
+{% block content %}
+
+<h3>PO-{{ po.id }} — {{ po.supplier.name }}</h3>
+<p><strong>Status:</strong> 
+    {% if po.status == 'pending' %}
+        <span class="badge bg-warning text-dark">Pending</span>
+    {% else %}
+        <span class="badge bg-success">Received</span>
+    {% endif %}
+</p>
+<p><strong>Created by:</strong> {{ po.created_by.username }} on {{ po.date }}</p>
+
+<hr>
+
+<h5>Order Items</h5>
+<table class="table table-bordered table-striped">
+    <a href="{% url 'inventory:export_po_pdf' po.id %}" class="btn btn-outline-danger mb-3">
+        Export to PDF
+    </a>
+    
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Subtotal</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in po.items.all %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.unit_price }}</td>
+            <td>{{ item.subtotal }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p class="text-end"><strong>Total: </strong> ₹ {{ total }}</p>    
+</p>
+
+{% if po.status == 'pending' %}
+<a href="{% url 'inventory:receive_purchase_order' po.id %}" class="btn btn-success">Mark as Received</a>
+{% else %}
+    <span class="badge bg-success">Already Received</span>
+{% endif %}
+{% if po.status == 'received' %}
+<a href="{% url 'inventory:export_po_receipt_pdf' po.id %}" class="btn btn-outline-secondary">Download Receipt PDF</a>
+{% endif %}
+
+<a href="{% url 'inventory:purchase_order_list' %}" class="btn btn-secondary">Back</a>
+
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Suppliers{% endblock %}
+{% block content %}
+<h3>Suppliers</h3>
+<a href="{% url 'inventory:add_supplier' %}" class="btn btn-primary mb-3">Add Supplier</a>
+
+<table class="table table-striped table-bordered">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            {% if request.user.is_superuser %}
+            <th>Actions</th>
+            {% endif %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for supplier in suppliers %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ supplier.name }}</td>
+            <td>{{ supplier.contact_email }}</td>
+            <td>{{ supplier.contact_phone }}</td>
+            {% if request.user.is_superuser %}
+            <td>
+                <a href="{% url 'inventory:supplier_edit' supplier.id %}" class="btn btn-sm btn-warning">Edit</a>
+            </td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

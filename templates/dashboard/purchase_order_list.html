@@ -1,0 +1,79 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Purchase Orders{% endblock %}
+{% block content %}
+
+<h3>All Purchase Orders</h3>
+<form method="get" class="row g-3 mb-4">
+    <div class="col-md-3">
+      <label>Supplier</label>
+      <select name="supplier" class="form-select">
+        <option value="">All</option>
+        {% for s in suppliers %}
+          <option value="{{ s.id }}" {% if selected_supplier == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  
+    <div class="col-md-2">
+      <label>Status</label>
+      <select name="status" class="form-select">
+        <option value="">All</option>
+        <option value="pending" {% if selected_status == "pending" %}selected{% endif %}>Pending</option>
+        <option value="received" {% if selected_status == "received" %}selected{% endif %}>Received</option>
+      </select>
+    </div>
+  
+    <div class="col-md-2">
+      <label>Start Date</label>
+      <input type="date" name="start" class="form-control" value="{{ start_date }}">
+    </div>
+  
+    <div class="col-md-2">
+      <label>End Date</label>
+      <input type="date" name="end" class="form-control" value="{{ end_date }}">
+    </div>
+  
+    <div class="col-md-3 d-flex align-items-end">
+      <button type="submit" class="btn btn-primary me-2">Filter</button>
+      <a href="{% url 'inventory:export_purchase_orders_csv' %}?supplier={{ selected_supplier }}&status={{ selected_status }}&start={{ start_date }}&end={{ end_date }}" class="btn btn-success">CSV</a>
+      <a href="{% url 'inventory:export_purchase_orders_pdf' %}?supplier={{ selected_supplier }}&status={{ selected_status }}&start={{ start_date }}&end={{ end_date }}" class="btn btn-danger">PDF</a>
+    </div>
+  </form>
+  
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>PO ID</th>
+            <th>Supplier</th>
+            <th>Created By</th>
+            <th>Date</th>
+            <th>Actions</th>
+            
+        </tr>
+    </thead>
+    <tbody>
+        {% for po in orders %}
+        <tr>
+            <td>PO-{{ po.id }}</td>
+            <td>{{ po.supplier.name }}</td>
+            <td>{{ po.created_by.username }}</td>
+            <td>{{ po.date }}</td>
+            <td>
+                <!-- For future: Receive PO, Export PDF, etc -->
+                <a href="{% url 'inventory:purchase_order_detail' po.id %}" class="btn btn-sm btn-outline-primary">View</a>
+                {% if po.status == 'pending' %}
+    <a href="{% url 'inventory:receive_purchase_order' po.id %}" class="btn btn-sm btn-success">Mark as Received</a>
+{% else %}
+    <span class="badge bg-success">Received</span>
+{% endif %}
+
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center">No Purchase Orders found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

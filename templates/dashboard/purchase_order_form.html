@@ -1,0 +1,45 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Create Purchase Order{% endblock %}
+{% block content %}
+
+<h3>Create Purchase Order</h3>
+
+<form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label for="supplier">Supplier</label>
+        {{ po_form.supplier }}
+    </div>
+    <a href="{% url 'inventory:add_supplier' %}" class="btn btn-sm btn-outline-primary mb-2">
+        + Add New Supplier
+    </a>
+    
+    <hr>
+    <h5>Order Items</h5>
+    {{ item_formset.management_form }}
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Qty</th>
+                <th>Unit Price</th>
+                <th>Remove?</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for form in item_formset %}
+                <tr>
+                    <td>{{ form.product }}</td>
+                    <td>{{ form.quantity }}</td>
+                    <td>{{ form.unit_price }}</td>
+                    <td>{{ form.DELETE }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <button type="submit" class="btn btn-success">Submit PO</button>
+</form>
+
+{% endblock %}

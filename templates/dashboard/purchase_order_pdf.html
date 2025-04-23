@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: sans-serif; font-size: 12px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header img { height: 80px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #000; padding: 5px; text-align: left; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    {% if company.logo %}
+        <img src="{{ company.logo.path }}" alt="Logo"><br>
+    {% endif %}
+    <strong>{{ company.name }}</strong><br>
+    {{ company.address }}<br>
+    {{ company.contact_email }} | {{ company.contact_phone }}<br>
+    {{ company.website }}
+</div>
+
+<hr>
+
+<h2>Purchase Order: PO-{{ po.id }}</h2>
+<p><strong>Status:</strong> {{ po.status|title }}</p>
+<p><strong>Supplier:</strong> {{ po.supplier.name }}</p>
+<p><strong>Created by:</strong> {{ po.created_by.username }} on {{ po.date }}</p>
+
+<h4>Items:</h4>
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Subtotal</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in po.items.all %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.unit_price }}</td>
+            <td>{{ item.subtotal }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p style="text-align: right; margin-top: 20px;"><strong>Total:</strong> ₹ {{ total }}</p>
+
+</body>
+</html>

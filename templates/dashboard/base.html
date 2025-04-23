@@ -42,17 +42,37 @@
     <div class="sidebar">
         <h5>Inventory System</h5>
         <nav class="nav flex-column">
-            <a class="nav-link" href="{% url 'store_dashboard' %}">Dashboard</a>
+            <a class="nav-link" href="{% url 'inventory:dashboard' %}">Dashboard</a>
             <a class="nav-link" href="{% url 'inventory:product_list' %}">Products</a>
-            <a class="nav-link" href="{% url 'inventory:stock_list' %}">Stock</a>
-            <a class="nav-link" href="{% url 'inventory:stock_adjustment_create' %}">Stock Adjustment</a>
-    
-            {% if request.user.can_view_transfers or request.user.is_superuser %}
-                <a class="nav-link" href="{% url 'inventory:stock_transfer' %}">Stock Transfers</a>
+            <a class="nav-link" href="{% url 'inventory:stock_list' %}">Stock Overview</a>
+            <a class="nav-link" href="{% url 'inventory:inventory_report' %}">Inventory Report</a>
+            {% if request.user.can_adjust_stock or request.user.can_transfer_stock or request.user.can_view_transfers or request.user.is_superuser %}
+                <!-- Stock Management -->
+                <a class="nav-link" data-bs-toggle="collapse" href="#stockManagementMenu" role="button" aria-expanded="false" aria-controls="stockManagementMenu">
+                    Stock Management
+                </a>
+                <div class="collapse" id="stockManagementMenu">
+                    <div class="nav flex-column ms-3">
+                        {% if request.user.can_adjust_stock or request.user.is_superuser %}
+                            <a class="nav-link" href="{% url 'inventory:stock_adjustment_create' %}">Adjust Stock</a>
+                        {% endif %}
+                        {% if request.user.can_transfer_stock or request.user.is_superuser %}
+                            <a class="nav-link" href="{% url 'inventory:stock_transfer' %}">Transfer Stock</a>
+                        {% endif %}
+                        {% if request.user.can_view_transfers or request.user.is_superuser %}
+                            <a class="nav-link" href="{% url 'inventory:stock_transfer_list' %}">Transfer History</a>
+                        {% endif %}
+                    </div>
+                </div>
             {% endif %}
-    
+
             {% if request.user.is_superuser or request.user.role == 'manager' %}
-                <!-- User Management Dropdown -->
+    <a class="nav-link" href="{% url 'inventory:audit_log_list' %}">Audit Logs</a>
+{% endif %}
+
+        
+            {% if request.user.is_superuser or request.user.role == 'manager' %}
+                <!-- User Management -->
                 <a class="nav-link" data-bs-toggle="collapse" href="#userManagementMenu" role="button" aria-expanded="false" aria-controls="userManagementMenu">
                     User Management
                 </a>
@@ -60,18 +80,47 @@
                     <div class="nav flex-column ms-3">
                         <a class="nav-link" href="{% url 'users:user_list' %}">Manage Users</a>
                         <a class="nav-link" href="{% url 'users:user_create' %}">Add User</a>
-                        <!-- Add more options here as needed -->
                     </div>
                 </div>
             {% endif %}
-    
+            {% if request.user.is_superuser or request.user.role == 'manager' %}
+            <a class="nav-link" href="{% url 'inventory:purchase_create' %}">Record Purchase</a>
+        {% endif %}
+        {% if request.user.is_superuser or request.user.role == 'sales' or request.user.role == 'staff' or request.user.role == 'clerk' or request.user.role == 'manager' %}
+        <a class="nav-link" href="{% url 'inventory:sale_create' %}">Record Sale</a>
+            <a class="nav-link" href="{% url 'inventory:sale_list' %}">Sales History</a>
+        {% endif %}
+
+        {% if request.user.is_superuser or request.user.role == 'manager' %}
+        <a class="nav-link" href="{% url 'inventory:create_purchase_order' %}">New Purchase Order</a>
+        {% endif %}
+
+        {% if request.user.is_superuser or request.user.role == 'admin' or request.user.role == 'manager' %}
+    <a class="nav-link" href="{% url 'inventory:purchase_order_list' %}">Purchase Orders</a>
+    {% endif %}
+    {% if request.user.role == 'admin' or request.user.role == 'manager' or request.user.is_superuser %}
+    <a class="nav-link" href="{% url 'inventory:supplier_list' %}">Suppliers</a>
+    {% endif %}    
+    {% if request.user.role == 'sales' or request.user.role == 'manager' or request.user.role == 'admin' or request.user.is_superuser %}
+    <a class="nav-link" href="{% url 'inventory:customer_create' %}">Add Customer</a>
+{% endif %}
+
             {% if request.user.is_superuser %}
                 <a class="nav-link" href="{% url 'admin:index' %}">Admin Panel</a>
             {% endif %}
-        </nav>
+        </nav>        
     </div>    
     
     <div class="main">
+        {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+        {% endif %}
+
         <div class="top-nav">
             <span>Hi, {{ request.user.username }}</span>
             <a href="{% url 'logout' %}" class="logout-link">Logout</a>

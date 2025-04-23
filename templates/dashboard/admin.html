@@ -1,8 +1,64 @@
-{% extends "dashboard/base.html" %}
-
+{% extends 'dashboard/base.html' %}
 {% block title %}Admin Dashboard{% endblock %}
-
 {% block content %}
-    <h1>Welcome Admin</h1>
-    <p>This is your admin dashboard.</p>
+
+<h3>Welcome, {{ request.user.username }}</h3>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h5 class="card-title">Total Products</h5>
+                <p class="card-text fs-4">{{ total_products }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h5 class="card-title">Total Stock</h5>
+                <p class="card-text fs-4">{{ total_stock }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h5 class="card-title">Sales Today</h5>
+                <p class="card-text fs-4">{{ sales_today }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-dark">
+            <div class="card-body">
+                <h5 class="card-title">Sales This Week</h5>
+                <p class="card-text fs-4">{{ sales_this_week }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if low_stock_products %}
+<h4 class="text-danger">Low Stock Products</h4>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Product</th>
+            <th>Total Qty</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for product in low_stock_products %}
+        <tr>
+            <td>{{ product.name }}</td>
+            <td>{{ product.total_quantity }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="text-success">✅ All products have sufficient stock.</p>
+{% endif %}
+
 {% endblock %}

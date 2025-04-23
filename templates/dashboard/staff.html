@@ -1,0 +1,54 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Store Dashboard{% endblock %}
+{% block content %}
+
+<h3>Welcome, {{ request.user.username }}</h3>
+<p class="text-muted">Store: {{ store.name }}</p>
+
+<hr>
+<h5>Current Stock</h5>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Product</th>
+            <th>Quantity</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in stock %}
+        <tr>
+            <td>{{ s.product.name }}</td>
+            <td>{{ s.quantity }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="2">No stock found for this store.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<hr>
+<h5>Recent Sales</h5>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Sold By</th>
+            <th>Date</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for sale in sales %}
+        <tr>
+            <td>{{ sale.product.name }}</td>
+            <td>{{ sale.quantity }}</td>
+            <td>{{ sale.sold_by.username }}</td>
+            <td>{{ sale.sale_date|date:"Y-m-d H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4">No recent sales found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

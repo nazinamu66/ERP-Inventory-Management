@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>PO Receipt - PO-{{ po.id }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 14px; }
+        .header, .footer { text-align: center; }
+        .logo { max-height: 80px; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #333; padding: 8px; text-align: left; }
+        .total { text-align: right; margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    {% if company and company.logo %}
+        <img src="{{ company.logo.url }}" class="logo"><br>
+    {% endif %}
+    {% if company %}
+        <h2>{{ company.name }}</h2>
+        <p>{{ company.address }}</p>
+        <p>{{ company.contact_email }} | {{ company.contact_phone }}</p>
+        <p>{{ company.website }}</p>
+    {% endif %}
+</div>
+
+<hr>
+
+<h3>Purchase Order Receipt — PO-{{ po.id }}</h3>
+<p><strong>Supplier:</strong> {{ po.supplier.name }}</p>
+<p><strong>Date:</strong> {{ po.date }}</p>
+<p><strong>Received By:</strong> {{ received_by.get_full_name }} ({{ received_by.username }})</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Subtotal</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in po.items.all %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>₦{{ item.unit_price }}</td>
+            <td>₦{{ item.subtotal }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p class="total">Total: ₦{{ total }}</p>
+
+<hr>
+<div class="footer">
+    <p>Generated on {{ now|date:"Y-m-d H:i" }}</p>
+</div>
+
+</body>
+</html>

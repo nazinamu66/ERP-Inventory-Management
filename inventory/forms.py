@@ -1,5 +1,95 @@
 from django import forms
 from inventory.models import StockTransfer, Store, Product, StockAdjustment
+from .models import Purchase
+from .models import Sale
+from django import forms
+from .models import PurchaseOrder, PurchaseOrderItem
+from .models import Supplier
+from django.forms import inlineformset_factory
+from .models import SaleItem
+from .models import Customer
+
+class CustomerForm(forms.ModelForm):
+    class Meta:
+        model = Customer
+        fields = ['name', 'email', 'phone', 'address']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+
+
+class SupplierForm(forms.ModelForm):
+    class Meta:
+        model = Supplier
+        fields = ['name', 'contact_email', 'contact_phone', 'address']
+
+
+class PurchaseOrderForm(forms.ModelForm):
+    class Meta:
+        model = PurchaseOrder
+        fields = ['supplier']
+
+class PurchaseOrderItemForm(forms.ModelForm):
+    class Meta:
+        model = PurchaseOrderItem
+        fields = ['product', 'quantity', 'unit_price']
+
+
+class SaleForm(forms.ModelForm):
+    class Meta:
+        model = Sale
+        fields = ['customer', 'store', 'payment_status', 'payment_method', 'bank', 'amount_paid', 'note']
+        widgets = {
+            'customer': forms.Select(attrs={'class': 'form-control'}),
+            'store': forms.Select(attrs={'class': 'form-control'}),
+            'payment_status': forms.Select(attrs={'class': 'form-control'}),
+            'payment_method': forms.Select(attrs={'class': 'form-control'}),
+            'amount_paid': forms.NumberInput(attrs={'class': 'form-control'}),
+            'note': forms.Textarea(attrs={'class': 'form-control'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+        self.fields['bank'].widget.attrs.update({'class': 'form-control', 'id':'id_bank'})
+
+        if request and hasattr(request.user, 'role') and request.user.role in ['manager', 'staff', 'sales', 'clerk']:
+            self.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
+            self.fields['store'].initial = request.user.store
+
+
+SaleItemFormSet = inlineformset_factory(
+    Sale,
+    SaleItem,
+    fields=['product', 'quantity', 'unit_price'],
+    extra=1,
+    can_delete=True
+)
+
+class PurchaseForm(forms.ModelForm):
+    class Meta:
+        model = Purchase
+        fields = ['product', 'store', 'quantity', 'supplier_name', 'note']
+        widgets = {
+            'product': forms.Select(attrs={'class': 'form-control'}),
+            'store': forms.Select(attrs={'class': 'form-control'}),
+            'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
+            'supplier_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        # Limit store to manager's store only
+        if request and hasattr(request.user, 'role') and request.user.role == 'manager':
+            self.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
+            self.fields['store'].initial = request.user.store
+
 
 class StockAdjustmentForm(forms.ModelForm):
     ADJUSTMENT_CHOICES = [
@@ -40,3 +130,17 @@ class StockTransferForm(forms.ModelForm):
     class Meta:
         model = StockTransfer
         fields = ['product', 'source_store', 'destination_store', 'quantity']
+        widgets = {
+            'product': forms.Select(attrs={'class': 'form-control'}),
+            'source_store': forms.Select(attrs={'class': 'form-control'}),
+            'destination_store': forms.Select(attrs={'class': 'form-control'}),
+            'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        if request and request.user.role == 'manager':
+            self.fields['source_store'].queryset = Store.objects.filter(id=request.user.store.id)
+            self.fields['source_store'].initial = request.user.store

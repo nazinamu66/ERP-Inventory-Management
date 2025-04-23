@@ -43,5 +43,7 @@ urlpatterns = [
     path('dashboard/', default_dashboard, name='default_dashboard'),
     path('dashboard/', include('inventory.urls')),  # Add this line
     path('accounts/login/', auth_views.LoginView.as_view(), name='account_login'),  # 👈 ADD THIS
+    path('dashboard/', include(('inventory.urls', 'inventory'), namespace='inventory')),
+
 
 ]

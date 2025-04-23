@@ -1,0 +1,27 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Receive Purchase Order{% endblock %}
+{% block content %}
+
+<h3>Receive PO-{{ po.id }}</h3>
+
+<form method="POST">
+  {% csrf_token %}
+  {% if stores %}
+    <div class="mb-3">
+      <label>Select Store</label>
+      <select name="store" class="form-select" required>
+        <option value="">-- Select Store --</option>
+        {% for s in stores %}
+          <option value="{{ s.id }}">{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  {% else %}
+    <p><strong>Store:</strong> {{ request.user.store.name }}</p>
+  {% endif %}
+
+  <button type="submit" class="btn btn-success">Receive & Update Stock</button>
+  <a href="{% url 'inventory:purchase_order_detail' po.id %}" class="btn btn-secondary">Cancel</a>
+</form>
+
+{% endblock %}
