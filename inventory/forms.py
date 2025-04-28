@@ -1,13 +1,27 @@
 from django import forms
-from inventory.models import StockTransfer, Store, Product, StockAdjustment
-from .models import Purchase
-from .models import Sale
-from django import forms
-from .models import PurchaseOrder, PurchaseOrderItem
-from .models import Supplier
 from django.forms import inlineformset_factory
-from .models import SaleItem
-from .models import Customer
+from .models import SaleReturn, SaleReturnItem
+
+class SaleReturnForm(forms.ModelForm):
+    class Meta:
+        model = SaleReturn
+        fields = ['reason']
+
+
+SaleReturnItemFormSet = inlineformset_factory(
+    SaleReturn,
+    SaleReturnItem,
+    fields=['sale_item', 'quantity_returned'],
+    extra=0,
+    can_delete=False
+)
+
+
+from inventory.models import (
+    StockTransfer, Store, Product, StockAdjustment,
+    Purchase, PurchaseOrder, PurchaseOrderItem, Supplier,
+    Sale, SaleItem, Customer
+)
 
 class CustomerForm(forms.ModelForm):
     class Meta:
@@ -20,7 +34,6 @@ class CustomerForm(forms.ModelForm):
             'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
 
-
 class SupplierForm(forms.ModelForm):
     class Meta:
         model = Supplier
@@ -31,6 +44,7 @@ class PurchaseOrderForm(forms.ModelForm):
     class Meta:
         model = PurchaseOrder
         fields = ['supplier']
+
 
 class PurchaseOrderItemForm(forms.ModelForm):
     class Meta:
@@ -54,13 +68,15 @@ class SaleForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
-        self.fields['bank'].widget.attrs.update({'class': 'form-control', 'id':'id_bank'})
+
+        self.fields['bank'].widget.attrs.update({'class': 'form-control', 'id': 'id_bank'})
 
         if request and hasattr(request.user, 'role') and request.user.role in ['manager', 'staff', 'sales', 'clerk']:
             self.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
             self.fields['store'].initial = request.user.store
 
 
+# ✅ Using "form" as prefix to match HTML/JS
 SaleItemFormSet = inlineformset_factory(
     Sale,
     SaleItem,
@@ -68,6 +84,7 @@ SaleItemFormSet = inlineformset_factory(
     extra=1,
     can_delete=True
 )
+
 
 class PurchaseForm(forms.ModelForm):
     class Meta:
@@ -85,7 +102,6 @@ class PurchaseForm(forms.ModelForm):
         request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
 
-        # Limit store to manager's store only
         if request and hasattr(request.user, 'role') and request.user.role == 'manager':
             self.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
             self.fields['store'].initial = request.user.store
@@ -99,7 +115,7 @@ class StockAdjustmentForm(forms.ModelForm):
 
     adjustment_type = forms.ChoiceField(
         choices=ADJUSTMENT_CHOICES,
-        widget=forms.RadioSelect,  # Or Select
+        widget=forms.RadioSelect,
         required=True
     )
 
@@ -117,7 +133,6 @@ class StockAdjustmentForm(forms.ModelForm):
         return qty
 
 
-
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
@@ -125,6 +140,7 @@ class ProductForm(forms.ModelForm):
         widgets = {
             'description': forms.Textarea(attrs={'rows': 3}),
         }
+
 
 class StockTransferForm(forms.ModelForm):
     class Meta:
@@ -141,6 +157,6 @@ class StockTransferForm(forms.ModelForm):
         request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
 
-        if request and request.user.role == 'manager':
+        if request and hasattr(request.user, 'role') and request.user.role == 'manager':
             self.fields['source_store'].queryset = Store.objects.filter(id=request.user.store.id)
             self.fields['source_store'].initial = request.user.store

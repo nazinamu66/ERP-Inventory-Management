@@ -1,0 +1,110 @@
+{% load math_filters %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Receipt - {{ sale.receipt_number }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; font-size: 14px; }
+    h2, h4 { margin-bottom: 5px; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .company-info { text-align: right; }
+    .info, .totals { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    .info td, .items th, .items td, .totals td { padding: 8px; border: 1px solid #ddd; }
+    .items { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    .items th { background: #f0f0f0; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    {% if logo_url %}
+      <div>
+        <img src="{{ logo_url }}" alt="Logo" style="height: 60px;">
+      </div>
+    {% endif %}
+    <div class="company-info">
+      <h2>{{ company.name|default:"My Company" }}</h2>
+      <p>
+        {{ company.address }}<br>
+        Phone: {{ company.contact_phone }} | Email: {{ company.contact_email }}
+      </p>
+    </div>
+  </div>
+
+  <h4 class="text-center">Receipt</h4>
+
+  <table class="info">
+    <tr>
+      <td><strong>Receipt No:</strong> {{ sale.receipt_number }}</td>
+      <td><strong>Date:</strong> {{ sale.sale_date|date:"M d, Y H:i" }}</td>
+    </tr>
+    <tr>
+      <td><strong>Customer:</strong> {{ sale.customer.name }}</td>
+      <td><strong>Sold By:</strong> {{ sale.sold_by.username }}</td>
+    </tr>
+    <tr>
+      <td><strong>Store:</strong> {{ sale.store.name }}</td>
+      <td>
+        <strong>Payment:</strong> {{ sale.payment_method|capfirst }}
+        {% if sale.bank %} ({{ sale.bank.name }}){% endif %}
+      </td>
+    </tr>
+  </table>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Product</th>
+        <th class="text-right">Qty</th>
+        <th class="text-right">Unit Price</th>
+        <th class="text-right">Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in sale.items.all %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ item.product.name }}</td>
+        <td class="text-right">{{ item.quantity }}</td>
+        <td class="text-right">₹{{ item.unit_price|floatformat:2 }}</td>
+        <td class="text-right">₹{{ item.quantity|multiply:item.unit_price|floatformat:2 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr>
+      <td class="text-right"><strong>Total Amount:</strong></td>
+      <td class="text-right"><strong>₹{{ sale.total_amount|floatformat:2 }}</strong></td>
+    </tr>
+    {% if sale.amount_paid %}
+    <tr>
+      <td class="text-right"><strong>Amount Paid:</strong></td>
+      <td class="text-right">₹{{ sale.amount_paid|floatformat:2 }}</td>
+    </tr>
+    <tr>
+      <td class="text-right"><strong>Balance:</strong></td>
+      <td class="text-right">
+        ₹{{ sale.total_amount|subtract:sale.amount_paid|floatformat:2 }}
+      </td>
+    </tr>
+    {% endif %}
+  </table>
+
+  {% if sale.note %}
+  <div class="section">
+    <strong>Note:</strong>
+    <p>{{ sale.note }}</p>
+  </div>
+  {% endif %}
+
+  <p class="text-center">Thank you for your business!</p>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Account Balances{% endblock %}
+
+{% block content %}
+<h2>Account Balances</h2>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Account</th>
+            <th>Type</th>
+            <th>Balance (₹)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for account, balance in balances.items %}
+        <tr>
+            <td>{{ account.name }}</td>
+            <td>{{ account.get_type_display }}</td>
+            <td>{{ balance|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

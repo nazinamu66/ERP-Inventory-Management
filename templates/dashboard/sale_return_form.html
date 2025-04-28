@@ -1,0 +1,50 @@
+{% extends 'dashboard/base.html' %}
+{% load math_filters %}
+{% block title %}Return Items for {{ sale.receipt_number }}{% endblock %}
+
+{% block content %}
+<h3>Return Items for Receipt #{{ sale.receipt_number }}</h3>
+
+<form method="POST">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  {{ formset.management_form }}
+
+  <div class="mb-3">
+    <label for="{{ form.reason.id_for_label }}"><strong>Return Reason:</strong></label>
+    {{ form.reason }}
+    {% if form.reason.errors %}
+      <div class="text-danger">{{ form.reason.errors }}</div>
+    {% endif %}
+  </div>
+
+  <hr>
+  <h5>Return Items</h5>
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>Qty Sold</th>
+        <th>Qty Already Returned</th>
+        <th>Qty to Return</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for form in formset.forms %}
+  {% with item=sale_items_dict|dict_get:form.sale_item.value %}
+    <tr>
+      <td>{{ item.product.name }}</td>
+      <td>{{ item.quantity }}</td>
+      <td>{{ item.total_returned }}</td>
+      <td>{{ form.quantity_returned }}</td>
+      {{ form.sale_item }} {# hidden input #}
+    </tr>
+  {% endwith %}
+{% endfor %}
+tbody>
+  </table>
+  
+  <button type="submit" class="btn btn-danger">Process Return</button>
+  <a href="{% url 'inventory:sale_detail' pk=sale.id %}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

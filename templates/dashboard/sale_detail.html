@@ -1,0 +1,72 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Sale #{{ sale.receipt_number }}{% endblock %}
+{% load math_filters %}
+
+
+{% block content %}
+
+<h4>Sale Details</h4>
+
+<a href="{% url 'inventory:sale_return' sale.id %}" class="btn btn-warning mt-3">↩️ Return Items</a>
+
+
+<p><strong>Receipt:</strong> {{ sale.receipt_number }}</p>
+<p><strong>Customer:</strong> {{ sale.customer.name }}</p>
+<p><strong>Store:</strong> {{ sale.store.name }}</p>
+<p><strong>Sold By:</strong> {{ sale.sold_by.username }}</p>
+<p><strong>Date:</strong> {{ sale.sale_date|date:"M d, Y H:i" }}</p>
+<p><strong>Payment:</strong> {{ sale.payment_method|capfirst }}{% if sale.bank %} ({{ sale.bank.name }}){% endif %}</p>
+
+<hr>
+
+<h5>Items</h5>
+<table class="table table-bordered">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Product</th>
+      <th>Qty</th>
+      <th>Unit Price</th>
+      <th>Subtotal</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in sale.items.all %}
+    <tr>
+      <td>{{ forloop.counter }}</td>
+      <td>{{ item.product.name }}</td>
+      <td>{{ item.quantity }}</td>
+      <td>₹{{ item.unit_price|floatformat:2 }}</td>
+      <td>₹{{ item.quantity|floatformat:2|add:"0"|floatformat|floatformat:"2"|floatformat:"2"|floatformat }} × {{ item.unit_price|floatformat:"2" }} = ₹{{ item.quantity|multiply:item.unit_price|floatformat:2 }}</td>
+    </tr>
+    {% endfor %}
+    <tr>
+      <td colspan="4" class="text-end"><strong>Total:</strong></td>
+      <td><strong>₹{{ sale.total_amount|floatformat:2 }}</strong></td>
+    </tr>
+    {% if sale.amount_paid %}
+    <tr>
+      <td colspan="4" class="text-end"><strong>Amount Paid:</strong></td>
+      <td>₹{{ sale.amount_paid|floatformat:2 }}</td>
+    </tr>
+    {% if sale.total_amount > sale.amount_paid %}
+    <tr>
+      <td colspan="4" class="text-end"><strong>Balance:</strong></td>
+      <td>₹{{ sale.total_amount|subtract:sale.amount_paid|floatformat:2 }}</td>
+    </tr>
+    {% endif %}
+
+    {% endif %}
+  </tbody>
+</table>
+
+<hr>
+
+<!-- 🔘 Action Buttons -->
+<div class="mt-4 d-flex gap-2">
+  <a href="{% url 'inventory:sale_list' %}" class="btn btn-secondary">← Back to Sales</a>
+  <a href="{% url 'inventory:sale_receipt_pdf' sale.id %}" class="btn btn-outline-danger">🧾 Download PDF</a>
+  <button onclick="window.print()" class="btn btn-outline-dark">🖨️ Print</button>
+</div>
+
+{% endblock %}

@@ -2,7 +2,28 @@ from django.db import models
 from django.conf import settings
 from users.models import User
 from django.utils.timezone import now
+from django.contrib.auth import get_user_model
 
+User = get_user_model()
+
+class SaleReturn(models.Model):
+    sale = models.ForeignKey('Sale', on_delete=models.CASCADE, related_name='returns')
+    returned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    return_date = models.DateTimeField(auto_now_add=True)
+    reason = models.TextField(blank=True)
+    total_refunded = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    def __str__(self):
+        return f"Return #{self.id} for {self.sale.receipt_number}"
+
+
+class SaleReturnItem(models.Model):
+    sale_return = models.ForeignKey(SaleReturn, on_delete=models.CASCADE, related_name='items')
+    sale_item = models.ForeignKey('SaleItem', on_delete=models.CASCADE, related_name='return_items')
+    quantity_returned = models.PositiveIntegerField()
+
+    def subtotal(self):
+        return self.quantity_returned * self.sale_item.unit_price
 
 
 class CompanyProfile(models.Model):
@@ -172,10 +193,10 @@ class Sale(models.Model):
         return f"Sale #{self.id} - {self.customer} - {self.payment_status}"
     
 
-    def save(self, *args, **kwargs):
-        if not self.receipt_number:
-            self.receipt_number = "RCPT-" + get_random_string(8).upper()
-        super().save(*args, **kwargs)
+    # def save(self, *args, **kwargs):
+    #     if not self.receipt_number:
+    #         self.receipt_number = "RCPT-" + get_random_string(8).upper()
+    #     super().save(*args, **kwargs)
 
 
 class SaleItem(models.Model):
@@ -183,6 +204,10 @@ class SaleItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def total_returned(self):
+        return sum(item.quantity_returned for item in self.return_items.all())
+
 
     @property
     def subtotal(self):

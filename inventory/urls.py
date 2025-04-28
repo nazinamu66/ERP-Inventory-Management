@@ -13,11 +13,10 @@ from .views import create_purchase_order  # import the view
 from .views import purchase_order_list  # import the view
 from .views import add_supplier  # import the view
 from .views import receive_purchase_order, purchase_order_detail
+from .views import sale_list_view, sale_detail_view
 from django.conf import settings
 from django.conf.urls.static import static
 from .views import export_po_pdf
-
-
 
 
 from .views import (
@@ -39,12 +38,18 @@ from .views import (
     supplier_edit,
     supplier_list,
     customer_create,
-
+    sale_return_view,
+    delete_sale,
 )
 
 app_name = 'inventory'
 
 urlpatterns = [
+    path('sales/<int:sale_id>/delete/', delete_sale, name='sale_delete'),
+    path('sales/<int:pk>/delete/', views.sale_delete_view, name='sale_delete'),
+    path('sales/<int:sale_id>/return/', sale_return_view, name='sale_return'),
+    path('sales/<int:sale_id>/receipt/pdf/', views.sale_receipt_pdf, name='sale_receipt_pdf'),
+    path('sales/<int:pk>/', sale_detail_view, name='sale_detail'),
     path('products/', product_list, name='product_list'),
     path('stocks/', stock_list, name='stock_list'),
     path('stock-transfer/', stock_transfer_view, name='stock_transfer'),

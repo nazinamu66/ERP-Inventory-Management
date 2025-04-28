@@ -7,7 +7,6 @@
 <form method="POST" novalidate>
     {% csrf_token %}
     {{ formset.management_form }}
-    <input type="hidden" name="form-TOTAL_FORMS" id="id_form-TOTAL_FORMS" value="{{ formset.total_form_count|default:1 }}">
     <input type="hidden" name="grand_total" id="id_grand_total" value="0.00">
 
     <div id="formset-meta" data-form-count="{{ formset.total_form_count|default:0 }}"></div>
@@ -69,8 +68,8 @@
                 <div class="row">
                     {% for field in formset.empty_form.visible_fields %}
                     <div class="col-md-4 mb-2">
-                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                        {{ field }}
+                        <label>{{ field.label }}</label>
+                        {{ field.as_widget }}
                     </div>
                     {% endfor %}
                     <div class="col-md-2 d-flex align-items-end">
@@ -97,7 +96,6 @@
     <strong>Current Stock:</strong> <span id="stock-value">-</span>
 </div>
 
-<!-- JavaScript Logic -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const paymentMethod = document.getElementById('id_payment_method');
@@ -109,8 +107,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const totalSpan = document.getElementById('grand-total');
     const totalInput = document.getElementById('id_grand_total');
     const formsetPrefix = 'form';
-    let formIdx = parseInt(document.getElementById('formset-meta').dataset.formCount || 0);
     const formContainer = document.getElementById('items-container');
+    let formIdx = parseInt(document.getElementById('formset-meta').dataset.formCount || 0);
 
     function toggleBankField() {
         if (paymentMethod?.value === 'bank_transfer') {
@@ -168,12 +166,23 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.formset-item').forEach(attachListeners);
 
     document.getElementById('add-item-btn').addEventListener('click', () => {
-        const template = document.getElementById('empty-form-template').innerHTML;
+        const templateHtml = document.getElementById('empty-form-template').innerHTML;
+        const newHtml = templateHtml.replace(/__prefix__/g, formIdx);
         const wrapper = document.createElement('div');
-        wrapper.innerHTML = template.replace(/__prefix__/g, formIdx);
+        wrapper.innerHTML = newHtml;
         const newForm = wrapper.firstElementChild;
+
+        // 🔧 Fix name/id for newly added form fields
+        newForm.querySelectorAll('[name]').forEach(el => {
+            el.name = el.name.replace('__prefix__', formIdx);
+        });
+        newForm.querySelectorAll('[id]').forEach(el => {
+            el.id = el.id.replace('__prefix__', formIdx);
+        });
+
         formContainer.appendChild(newForm);
         document.getElementById(`id_${formsetPrefix}-TOTAL_FORMS`).value = ++formIdx;
+
         attachListeners(newForm);
         updateTotal();
     });
@@ -197,5 +206,4 @@ document.addEventListener('DOMContentLoaded', function () {
     updateTotal();
 });
 </script>
-
 {% endblock %}

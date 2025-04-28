@@ -31,6 +31,18 @@ from datetime import datetime
 from django.conf import settings
 from weasyprint import HTML
 from .forms import CustomerForm
+from django.template.loader import render_to_string
+import weasyprint
+from .forms import SaleReturnForm, SaleReturnItemFormSet, SaleReturnItem
+from django.forms import inlineformset_factory
+from django.http import HttpResponseForbidden
+from .models import SaleReturn, SaleReturnItem
+from django.views.decorators.http import require_POST
+from accounting.services import record_transaction
+
+
+
+
 
 
 
@@ -350,6 +362,24 @@ def add_supplier(request):
 
     return render(request, 'dashboard/supplier_form.html', {'form': form})
 
+@login_required
+def delete_sale(request, sale_id):
+    sale = get_object_or_404(Sale, pk=sale_id)
+
+    if request.method == "POST":
+        with transaction.atomic():
+            for item in sale.items.all():
+                # Restore stock to the same store
+                stock, _ = Stock.objects.get_or_create(product=item.product, store=sale.store)
+                stock.quantity += item.quantity
+                stock.save()
+            
+            sale.delete()
+            messages.success(request, "Sale deleted and stock restored.")
+            return redirect('inventory:sale_list')
+
+    return render(request, 'dashboard/confirm_delete.html', {'object': sale, 'type': 'Sale'})
+
 
 @login_required
 def export_sales_pdf(request):
@@ -547,6 +577,70 @@ def audit_log_list_view(request):
 
 from .models import Sale
 from django.core.paginator import Paginator
+from django.db.models import Sum
+
+@login_required
+def sale_return_view(request, sale_id):
+    sale = get_object_or_404(Sale, pk=sale_id)
+
+    if request.method == 'POST':
+        form = SaleReturnForm(request.POST)
+        formset = SaleReturnItemFormSet(request.POST)
+
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                sale_return = form.save(commit=False)
+                sale_return.sale = sale
+                sale_return.returned_by = request.user
+                sale_return.save()
+
+                total = 0
+                for item_form in formset:
+                    return_item = item_form.save(commit=False)
+                    sale_item = return_item.sale_item
+                    return_qty = return_item.quantity_returned
+
+                    if return_qty > 0:
+                        # Update stock
+                        stock = Stock.objects.get(product=sale_item.product, store=sale.store)
+                        stock.quantity += return_qty
+                        stock.save()
+
+                        return_item.sale_return = sale_return
+                        return_item.save()
+
+                        total += return_qty * sale_item.unit_price
+
+                sale_return.total_refunded = total
+                sale_return.save()
+
+                messages.success(request, "Return processed successfully.")
+                return redirect('inventory:sale_detail', pk=sale_id)
+
+    else:
+        form = SaleReturnForm()
+        formset = SaleReturnItemFormSet(
+            queryset=SaleReturnItem.objects.none(),
+            initial=[
+                {'sale_item': item.id, 'quantity_returned': 0}
+                for item in sale.items.all()
+            ],
+            prefix="return"
+        )
+
+        # Restrict the formset's sale_item queryset to sale's items only
+        for subform in formset.forms:
+            subform.fields['sale_item'].queryset = sale.items.all()
+        sale_items_dict = {str(item.id): item for item in sale.items.all()}
+
+
+    return render(request, 'dashboard/sale_return_form.html', {
+    'form': form,
+    'formset': formset,
+    'sale': sale,
+    'sale_items_dict': sale_items_dict,
+})
+
 
 @login_required
 def sale_list_view(request):
@@ -558,13 +652,16 @@ def sale_list_view(request):
     sold_by_id = request.GET.get('sold_by')
     start_date = request.GET.get('start')
     end_date = request.GET.get('end')
+    query = request.GET.get('q')
 
     # Role-based restriction
     if not request.user.is_superuser and request.user.role != 'admin':
         sales = sales.filter(store=request.user.store)
 
+    if query:
+        sales = sales.filter(receipt_number__icontains=query)
     if product_id:
-        sales = sales.filter(product_id=product_id)
+        sales = sales.filter(items__product_id=product_id)
     if store_id:
         sales = sales.filter(store_id=store_id)
     if sold_by_id:
@@ -572,7 +669,12 @@ def sale_list_view(request):
     if start_date and end_date:
         sales = sales.filter(sale_date__range=[start_date, end_date])
 
-    paginator = Paginator(sales, 20)
+    # ✅ Now calculate revenue based on the filtered queryset
+    total_revenue = sales.aggregate(Sum('total_amount'))['total_amount__sum'] or 0
+    total_sales_count = sales.count()
+
+
+    paginator = Paginator(sales.distinct(), 20)
     page = request.GET.get('page')
     sales_page = paginator.get_page(page)
 
@@ -581,88 +683,59 @@ def sale_list_view(request):
         'products': Product.objects.all(),
         'stores': Store.objects.all(),
         'users': User.objects.all(),
+        'total_revenue': total_revenue,
+        'total_sales_count': total_sales_count,  # 👈 added
+
     }
+    
 
     return render(request, 'dashboard/sale_list.html', context)
 
-import logging
-logger = logging.getLogger(__name__)
 
+@require_POST
+@login_required
+def sale_delete_view(request, pk):
+    if not request.user.is_superuser and request.user.role != 'manager':
+        return HttpResponseForbidden("You are not allowed to delete sales.")
+    
+    sale = get_object_or_404(Sale, pk=pk)
+    sale.delete()
+    messages.success(request, f"Sale {pk} deleted successfully.")
+    return redirect('inventory:sale_list')
 
 @login_required
-def sale_create(request):
-    if request.user.role not in ['sales', 'clerk', 'manager', 'admin'] and not request.user.is_superuser:
-        return render(request, 'errors/permission_denied.html', status=403)
+def sale_receipt_pdf(request, sale_id):
+    sale = get_object_or_404(Sale.objects.prefetch_related('items__product'), pk=sale_id)
 
-    form = SaleForm(request.POST or None, request=request)
-    formset = SaleItemFormSet(request.POST or None)
+    company = CompanyProfile.objects.first()
 
-    if request.method == 'POST':
-        if form.is_valid() and formset.is_valid():
-            try:
-                with transaction.atomic():
-                    sale = form.save(commit=False)
-                    sale.sold_by = request.user
-                    sale.save()
+    # Build logo URL using absolute media path
+    logo_url = ""
+    if company and company.logo:
+        logo_url = request.build_absolute_uri(company.logo.url)
 
-                    # ✅ Assign proper sequential receipt number based on sale.id
-                    if not sale.receipt_number:
-                        sale.receipt_number = f"RCPT-{sale.id:06d}"
-                        sale.save(update_fields=["receipt_number"])
+    context = {
+        'sale': sale,
+        'company': company,
+        'logo_url': logo_url,
+    }
 
-                    total = 0
-                    for form_item in formset:
-                        item = form_item.save(commit=False)
-                        item.sale = sale
-                        product = item.product
-                        store = sale.store
+    html_string = render_to_string('pdf/sale_receipt.html', context)
+    pdf_file = HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
 
-                        stock_entry = Stock.objects.filter(product=product, store=store).first()
-                        if not stock_entry or stock_entry.quantity < item.quantity:
-                            messages.error(request, f"Not enough stock for {product.name}.")
-                            return render(request, 'dashboard/sale_form.html', {
-                                'form': form,
-                                'formset': formset
-                            })
+    response = HttpResponse(pdf_file, content_type='application/pdf')
+    response['Content-Disposition'] = f'filename="Receipt-{sale.receipt_number}.pdf"'
+    return response
 
-                        # ✅ Log before/after quantities
-                        logger.info(f"Before: {stock_entry.quantity} of {product.name} in {store.name}")
-                        stock_entry.quantity -= item.quantity
-                        stock_entry.save()
-                        logger.info(f"After: {stock_entry.quantity}")
+@login_required
+def sale_detail_view(request, pk):
+    sale = get_object_or_404(Sale.objects.select_related('customer', 'store', 'sold_by', 'bank'), pk=pk)
+    items = sale.items.select_related('product').all()
 
-                        item.save()
-                        total += item.quantity * item.unit_price
-
-                    sale.total_amount = total
-                    sale.save(update_fields=["total_amount"])
-
-                    AuditLog.objects.create(
-                        user=request.user,
-                        action='adjustment',
-                        description=f"{request.user.username} made a sale to {sale.customer.name}"
-                    )
-
-                    messages.success(request, f"Sale recorded successfully. Receipt No: {sale.receipt_number}")
-                    return redirect('inventory:sale_create')
-            except Exception as e:
-                logger.error(f"Sale creation failed: {e}")
-                messages.error(request, "Something went wrong during sale creation.")
-
-    return render(request, 'dashboard/sale_form.html', {
-        'form': form,
-        'formset': formset
+    return render(request, 'dashboard/sale_detail.html', {
+        'sale': sale,
+        'items': items
     })
-@login_required
-def get_stock_quantity(request):
-    product_id = request.GET.get('product_id')
-    store_id = request.GET.get('store_id')
-
-    try:
-        stock = Stock.objects.get(product_id=product_id, store_id=store_id)
-        return JsonResponse({'quantity': stock.quantity})
-    except Stock.DoesNotExist:
-        return JsonResponse({'quantity': 0})
 
 
 @login_required
@@ -688,6 +761,135 @@ def admin_dashboard(request):
     }
 
     return render(request, 'dashboard/admin.html', context)
+
+
+
+import logging
+from django.http import JsonResponse
+from django.contrib import messages
+from django.db import transaction
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from .forms import SaleForm, SaleItemFormSet
+from .models import Sale, SaleItem, Stock, AuditLog
+
+logger = logging.getLogger(__name__)
+
+# inventory/views.py
+
+from accounting.services import record_transaction
+
+@login_required
+def sale_create(request):
+    if request.user.role not in ['sales', 'clerk', 'manager', 'admin'] and not request.user.is_superuser:
+        return render(request, 'errors/permission_denied.html', status=403)
+
+    form = SaleForm(request.POST or None, request=request)
+    formset = SaleItemFormSet(request.POST or None, prefix="form")
+
+    if request.method == 'POST':
+        if form.is_valid() and formset.is_valid():
+            try:
+                with transaction.atomic():
+                    sale = form.save(commit=False)
+                    sale.sold_by = request.user
+                    sale.save()
+
+                    if not sale.receipt_number:
+                        sale.receipt_number = f"RCPT-{sale.id:06d}"
+                        sale.save(update_fields=["receipt_number"])
+
+                    total = 0
+                    items_saved = 0
+
+                    for index, form_item in enumerate(formset.forms):
+                        if form_item.cleaned_data.get("DELETE"):
+                            continue
+
+                        product = form_item.cleaned_data.get("product")
+                        quantity = form_item.cleaned_data.get("quantity")
+                        unit_price = form_item.cleaned_data.get("unit_price")
+                        store = sale.store
+
+                        if not all([product, quantity, unit_price]):
+                            continue
+
+                        stock_entry = Stock.objects.filter(product=product, store=store).first()
+                        if not stock_entry or stock_entry.quantity < quantity:
+                            messages.error(request, f"Not enough stock for {product.name}")
+                            return render(request, 'dashboard/sale_form.html', {'form': form, 'formset': formset})
+
+                        stock_entry.quantity -= quantity
+                        stock_entry.save()
+
+                        item = form_item.save(commit=False)
+                        item.sale = sale
+                        item.save()
+
+                        total += quantity * unit_price
+                        items_saved += 1
+
+                    if items_saved == 0:
+                        raise Exception("No valid sale items were saved.")
+
+                    sale.total_amount = total
+                    sale.save(update_fields=["total_amount"])
+
+                    # 🧠 Now RECORD transaction properly based on payment status
+                    if sale.payment_status == "paid":
+                        if sale.payment_method in ["cash"]:
+                            record_transaction(
+                                source_account_name="Cash",
+                                destination_account_name="Sales Revenue",
+                                amount=sale.total_amount,
+                                description=f"Sale - Receipt #{sale.receipt_number}"
+                            )
+                        elif sale.payment_method in ["bank", "transfer", "pos"]:
+                            record_transaction(
+                                source_account_name="Bank",
+                                destination_account_name="Sales Revenue",
+                                amount=sale.total_amount,
+                                description=f"Sale - Receipt #{sale.receipt_number}"
+                            )
+                    else:
+                        # Customer has not yet paid
+                        record_transaction(
+                            source_account_name="Accounts Receivable",
+                            destination_account_name="Sales Revenue",
+                            amount=sale.total_amount,
+                            description=f"Sale (credit) - Receipt #{sale.receipt_number}"
+                        )
+
+                    AuditLog.objects.create(
+                        user=request.user,
+                        action='adjustment',
+                        description=f"{request.user.username} made a sale to {sale.customer.name}"
+                    )
+
+                    messages.success(request, f"Sale recorded successfully. Receipt No: {sale.receipt_number}")
+                    return redirect('inventory:sale_create')
+
+            except Exception as e:
+                logger.error(f"❌ Sale creation failed: {e}")
+                messages.error(request, "Something went wrong while saving the sale.")
+
+    return render(request, 'dashboard/sale_form.html', {
+        'form': form,
+        'formset': formset
+    })
+
+@login_required
+def get_stock_quantity(request):
+    product_id = request.GET.get('product_id')
+    store_id = request.GET.get('store_id')
+
+    try:
+        stock = Stock.objects.get(product_id=product_id, store_id=store_id)
+        return JsonResponse({'quantity': stock.quantity})
+    except Stock.DoesNotExist:
+        return JsonResponse({'quantity': 0})
+
+
 
 
 # from .models import Product, Stock, Sale, Store, PurchaseOrder
