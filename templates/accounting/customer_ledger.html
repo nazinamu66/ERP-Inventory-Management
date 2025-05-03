@@ -1,0 +1,88 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}{{ customer.name }} - Ledger{% endblock %}
+
+{% block content %}
+<h3>{{ customer.name }} – Ledger</h3>
+
+<form method="get" class="mb-4">
+    <label>From:</label>
+    <input type="date" name="from" value="{{ from }}">
+
+    <label>To:</label>
+    <input type="date" name="to" value="{{ to }}">
+
+    <label>Type:</label>
+    <select name="type">
+        <option value="">All</option>
+        <option value="Invoice" {% if type == "Invoice" %}selected{% endif %}>Invoice</option>
+        <option value="Payment" {% if type == "Payment" %}selected{% endif %}>Payment</option>
+    </select>
+
+    <button type="submit" class="btn btn-primary">Filter</button>
+    <a id="download-pdf-btn" href="#" target="_blank" class="btn btn-danger btn-sm ms-2">
+        Download PDF
+    </a>
+</form>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Amount (₹)</th>
+            <th>Balance (₹)</th>
+            <th>Note</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in ledger %}
+        <tr>
+            <td>{{ entry.date|date:"Y-m-d H:i" }}</td>
+            <td>{{ entry.type }}</td>
+            <td>{{ entry.amount|floatformat:2 }}</td>
+            <td>{{ entry.balance|floatformat:2 }}</td>
+            <td>{{ entry.note }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="5" class="text-center">No transactions found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="3"><strong>Final Balance</strong></td>
+            <td><strong>₹{{ final_balance }}</strong></td>
+            <td></td>
+        </tr>
+    </tfoot>
+</table>
+
+<a href="{% url 'accounting:customer_list' %}" class="btn btn-secondary">← Back to Customers</a>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const pdfBtn = document.getElementById('download-pdf-btn');
+    const fromInput = document.querySelector('input[name="from"]');
+    const toInput = document.querySelector('input[name="to"]');
+    const typeInput = document.querySelector('select[name="type"]');
+
+    function updatePdfUrl() {
+        const params = new URLSearchParams();
+        if (fromInput?.value) params.append('from', fromInput.value);
+        if (toInput?.value) params.append('to', toInput.value);
+        if (typeInput?.value) params.append('type', typeInput.value);
+
+        const baseUrl = `{% url 'accounting:customer_ledger_pdf' customer.id %}`;
+        pdfBtn.href = `${baseUrl}?${params.toString()}`;
+    }
+
+    [fromInput, toInput, typeInput].forEach(input => {
+        if (input) input.addEventListener('change', updatePdfUrl);
+    });
+
+    updatePdfUrl(); // Run once on page load
+});
+</script>
+
+{% endblock %}

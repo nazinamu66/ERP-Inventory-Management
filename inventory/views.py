@@ -3,16 +3,14 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db import transaction
 from django.http import HttpResponse
-from inventory.models import StockTransfer, Stock,Supplier
+from inventory.models import StockTransfer,Supplier
 from inventory.forms import StockTransferForm
 from .forms import StockAdjustmentForm, ProductForm
 from .models import Product, Store, StockAdjustment
-from inventory.models import AuditLog
 from django.core.paginator import Paginator
 from .forms import PurchaseForm
 from .models import Purchase
 from .forms import SaleForm, SaleItemFormSet
-from .models import Sale
 from django.http import JsonResponse
 from .models import Stock
 from django.db.models import Q
@@ -39,8 +37,18 @@ from django.http import HttpResponseForbidden
 from .models import SaleReturn, SaleReturnItem
 from django.views.decorators.http import require_POST
 from accounting.services import record_transaction
-
-
+import logging
+from django.http import JsonResponse
+from django.contrib import messages
+from django.db import transaction
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from .forms import SaleForm, SaleItemFormSet
+from .models import Sale, SaleItem, Stock, AuditLog
+from .models import Sale
+from django.core.paginator import Paginator
+from django.db.models import Sum
+from .forms import InvoiceForm
 
 
 
@@ -266,7 +274,6 @@ def receive_purchase_order(request, po_id):
         messages.warning(request, "This PO has already been marked as received.")
         return redirect('inventory:purchase_order_detail', po_id=po.id)
 
-    # Admin selects store manually, manager uses their own
     if request.method == 'POST':
         if request.user.is_superuser or request.user.role == 'admin':
             store_id = request.POST.get('store')
@@ -276,23 +283,28 @@ def receive_purchase_order(request, po_id):
 
         try:
             with transaction.atomic():
+                total_value = 0
+
                 for item in po.items.select_related('product'):
                     product = item.product
                     quantity = item.quantity
+                    unit_price = item.unit_price
 
-                    # Update product total_quantity
                     product.total_quantity += quantity
                     product.save()
 
-                    # Update or create stock
                     stock, created = Stock.objects.get_or_create(
                         product=product,
                         store=store,
-                        defaults={'quantity': quantity}
+                        defaults={'quantity': quantity, 'cost_price': unit_price}
                     )
+
                     if not created:
                         stock.quantity += quantity
-                        stock.save()
+                        stock.cost_price = unit_price
+                        stock.save(update_fields=['quantity', 'cost_price'])
+
+                    total_value += quantity * unit_price
 
                 po.status = 'received'
                 po.save()
@@ -300,16 +312,25 @@ def receive_purchase_order(request, po_id):
                 AuditLog.objects.create(
                     user=request.user,
                     action='adjustment',
-                    description=f"{request.user.username} received Purchase Order PO-{po.id} and updated stock at {store.name}."
+                    description=f"{request.user.username} received PO-{po.id} and updated stock at {store.name}."
                 )
 
-            messages.success(request, "Purchase Order received and stock updated.")
-            return redirect('inventory:purchase_order_detail', po_id=po.id)
+                # ✅ Record slug-based accounting transaction
+                from accounting.services import record_transaction_by_slug
+                record_transaction_by_slug(
+                    source_slug="accounts-payable",
+                    destination_slug="inventory-assets",
+                    amount=total_value,
+                    description=f"PO-{po.id} Goods Received"
+                )
+
+                messages.success(request, "Purchase Order received and accounting recorded.")
+                return redirect('inventory:purchase_order_detail', po_id=po.id)
 
         except Exception as e:
+            logger.error(f"❌ PO receiving failed: {e}")
             messages.error(request, f"An error occurred: {e}")
 
-    # On GET → admin sees store dropdown, others just their store
     stores = Store.objects.all() if request.user.is_superuser or request.user.role == 'admin' else None
     return render(request, 'dashboard/receive_purchase_order.html', {'po': po, 'stores': stores})
 
@@ -368,14 +389,19 @@ def delete_sale(request, sale_id):
 
     if request.method == "POST":
         with transaction.atomic():
+            # ✅ Reverse the accounting entry if transaction exists
+            if sale.transaction:
+                from accounting.services import reverse_transaction
+                reverse_transaction(sale.transaction.id, reason=f"Sale Reversal: RCPT-{sale.receipt_number}")
+
+            # ✅ Restore stock
             for item in sale.items.all():
-                # Restore stock to the same store
                 stock, _ = Stock.objects.get_or_create(product=item.product, store=sale.store)
                 stock.quantity += item.quantity
                 stock.save()
-            
+
             sale.delete()
-            messages.success(request, "Sale deleted and stock restored.")
+            messages.success(request, "Sale deleted, stock restored, and accounting reversed.")
             return redirect('inventory:sale_list')
 
     return render(request, 'dashboard/confirm_delete.html', {'object': sale, 'type': 'Sale'})
@@ -575,9 +601,6 @@ def audit_log_list_view(request):
 
     return render(request, 'dashboard/audit_log_list.html', {'page_obj': page_obj})
 
-from .models import Sale
-from django.core.paginator import Paginator
-from django.db.models import Sum
 
 @login_required
 def sale_return_view(request, sale_id):
@@ -644,7 +667,7 @@ def sale_return_view(request, sale_id):
 
 @login_required
 def sale_list_view(request):
-    sales = Sale.objects.select_related('customer', 'store', 'sold_by', 'bank').prefetch_related('items__product')
+    sales = Sale.objects.select_related('customer', 'store', 'sold_by').prefetch_related('items__product')
 
     # Filters
     product_id = request.GET.get('product')
@@ -729,7 +752,7 @@ def sale_receipt_pdf(request, sale_id):
 
 @login_required
 def sale_detail_view(request, pk):
-    sale = get_object_or_404(Sale.objects.select_related('customer', 'store', 'sold_by', 'bank'), pk=pk)
+    sale = get_object_or_404(Sale.objects.select_related('customer', 'store', 'sold_by'), pk=pk)
     items = sale.items.select_related('product').all()
 
     return render(request, 'dashboard/sale_detail.html', {
@@ -764,119 +787,197 @@ def admin_dashboard(request):
 
 
 
-import logging
-from django.http import JsonResponse
-from django.contrib import messages
-from django.db import transaction
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from .forms import SaleForm, SaleItemFormSet
-from .models import Sale, SaleItem, Stock, AuditLog
 
 logger = logging.getLogger(__name__)
 
 # inventory/views.py
 
-from accounting.services import record_transaction
+from accounting.services import record_transaction, reverse_transaction
+
+from accounting.services import record_transaction_by_slug
 
 @login_required
-def sale_create(request):
+def sale_receipt_create(request):
     if request.user.role not in ['sales', 'clerk', 'manager', 'admin'] and not request.user.is_superuser:
         return render(request, 'errors/permission_denied.html', status=403)
 
-    form = SaleForm(request.POST or None, request=request)
+    from .forms import SaleReceiptForm
+    form = SaleReceiptForm(request.POST or None, request=request)
     formset = SaleItemFormSet(request.POST or None, prefix="form")
 
-    if request.method == 'POST':
-        if form.is_valid() and formset.is_valid():
-            try:
-                with transaction.atomic():
-                    sale = form.save(commit=False)
-                    sale.sold_by = request.user
-                    sale.save()
+    if request.method == 'POST' and form.is_valid() and formset.is_valid():
+        try:
+            with transaction.atomic():
+                sale = form.save(commit=False)
+                sale.sold_by = request.user
+                sale.sale_type = 'receipt'
+                sale.payment_status = 'paid'
+                sale.save()
 
-                    if not sale.receipt_number:
-                        sale.receipt_number = f"RCPT-{sale.id:06d}"
-                        sale.save(update_fields=["receipt_number"])
+                if not sale.receipt_number:
+                    sale.receipt_number = f"RCPT-{sale.id:06d}"
+                    sale.save(update_fields=["receipt_number"])
 
-                    total = 0
-                    items_saved = 0
+                total, cost_total = 0, 0
+                for form_item in formset:
+                    if form_item.cleaned_data.get("DELETE"):
+                        continue
 
-                    for index, form_item in enumerate(formset.forms):
-                        if form_item.cleaned_data.get("DELETE"):
-                            continue
+                    product = form_item.cleaned_data.get("product")
+                    quantity = form_item.cleaned_data.get("quantity")
+                    unit_price = form_item.cleaned_data.get("unit_price")
+                    store = sale.store
 
-                        product = form_item.cleaned_data.get("product")
-                        quantity = form_item.cleaned_data.get("quantity")
-                        unit_price = form_item.cleaned_data.get("unit_price")
-                        store = sale.store
+                    stock_entry = Stock.objects.filter(product=product, store=store).first()
+                    if not stock_entry or stock_entry.quantity < quantity:
+                        messages.error(request, f"Not enough stock for {product.name}")
+                        return render(request, 'dashboard/sale_receipt_form.html', {'form': form, 'formset': formset})
 
-                        if not all([product, quantity, unit_price]):
-                            continue
+                    stock_entry.quantity -= quantity
+                    stock_entry.save()
 
-                        stock_entry = Stock.objects.filter(product=product, store=store).first()
-                        if not stock_entry or stock_entry.quantity < quantity:
-                            messages.error(request, f"Not enough stock for {product.name}")
-                            return render(request, 'dashboard/sale_form.html', {'form': form, 'formset': formset})
+                    item = form_item.save(commit=False)
+                    item.sale = sale
+                    item.cost_price = stock_entry.cost_price if stock_entry.cost_price is not None else 0
+                    item.save()
 
-                        stock_entry.quantity -= quantity
-                        stock_entry.save()
+                    total += quantity * unit_price
+                    cost_total += quantity * item.cost_price
 
-                        item = form_item.save(commit=False)
-                        item.sale = sale
-                        item.save()
+                sale.total_amount = total
+                sale.save(update_fields=["total_amount"])
 
-                        total += quantity * unit_price
-                        items_saved += 1
+                bank_account = form.cleaned_data.get('bank_account')
+                description = f"Sale Receipt - {sale.receipt_number}"
 
-                    if items_saved == 0:
-                        raise Exception("No valid sale items were saved.")
+                print(f"✅ Recording Revenue Transaction: {total} from Sales Revenue to {'bank account' if bank_account else 'Undeposited Funds'}")
+                txn = record_transaction_by_slug(
+                    source_slug='sales-revenue',
+                    destination_slug=bank_account.slug if bank_account else 'undeposited-funds',
+                    amount=total,
+                    description=description
+                )
 
-                    sale.total_amount = total
-                    sale.save(update_fields=["total_amount"])
+                print(f"🔍 COGS Amount: {cost_total}")
+                print("👉 Recording COGS transaction now...")
+                record_transaction_by_slug(
+                    source_slug='inventory-assets',
+                    destination_slug='cost-of-goods-sold',
+                    amount=cost_total,
+                    description=f"COGS for {sale.receipt_number}"
+                )
 
-                    # 🧠 Now RECORD transaction properly based on payment status
-                    if sale.payment_status == "paid":
-                        if sale.payment_method in ["cash"]:
-                            record_transaction(
-                                source_account_name="Cash",
-                                destination_account_name="Sales Revenue",
-                                amount=sale.total_amount,
-                                description=f"Sale - Receipt #{sale.receipt_number}"
-                            )
-                        elif sale.payment_method in ["bank", "transfer", "pos"]:
-                            record_transaction(
-                                source_account_name="Bank",
-                                destination_account_name="Sales Revenue",
-                                amount=sale.total_amount,
-                                description=f"Sale - Receipt #{sale.receipt_number}"
-                            )
-                    else:
-                        # Customer has not yet paid
-                        record_transaction(
-                            source_account_name="Accounts Receivable",
-                            destination_account_name="Sales Revenue",
-                            amount=sale.total_amount,
-                            description=f"Sale (credit) - Receipt #{sale.receipt_number}"
-                        )
+                if txn:
+                    sale.transaction = txn
+                    sale.save(update_fields=["transaction"])
 
-                    AuditLog.objects.create(
-                        user=request.user,
-                        action='adjustment',
-                        description=f"{request.user.username} made a sale to {sale.customer.name}"
-                    )
+                AuditLog.objects.create(
+                    user=request.user,
+                    action='sale',
+                    description=f"{request.user.username} recorded a sale receipt for {sale.customer.name}"
+                )
 
-                    messages.success(request, f"Sale recorded successfully. Receipt No: {sale.receipt_number}")
-                    return redirect('inventory:sale_create')
+                messages.success(request, f"Receipt created successfully. No: {sale.receipt_number}")
+                return redirect('inventory:sale_receipt_create')
 
-            except Exception as e:
-                logger.error(f"❌ Sale creation failed: {e}")
-                messages.error(request, "Something went wrong while saving the sale.")
+        except Exception as e:
+            logger.error(f"❌ Sale receipt failed: {e}")
+            messages.error(request, "Something went wrong while recording the receipt.")
 
-    return render(request, 'dashboard/sale_form.html', {
+    return render(request, 'dashboard/sale_receipt_form.html', {'form': form, 'formset': formset})
+
+@login_required
+def invoice_create(request):
+    if request.user.role not in ['sales', 'clerk', 'manager', 'admin'] and not request.user.is_superuser:
+        return render(request, 'errors/permission_denied.html', status=403)
+
+    form = InvoiceForm(request.POST or None, request=request)
+    formset = SaleItemFormSet(request.POST or None, prefix="form")
+
+    if request.method == 'POST' and form.is_valid() and formset.is_valid():
+        try:
+            with transaction.atomic():
+                sale = form.save(commit=False)
+                sale.sale_type = 'invoice'
+                sale.sold_by = request.user
+                sale.payment_status = 'unpaid'
+                sale.save()
+
+                if not sale.receipt_number:
+                    sale.receipt_number = f"INV-{sale.id:06d}"
+                    sale.save(update_fields=["receipt_number"])
+
+                total = 0
+                cost_total = 0
+                store = sale.store
+
+                for form_item in formset:
+                    if form_item.cleaned_data.get("DELETE"):
+                        continue
+
+                    product = form_item.cleaned_data.get("product")
+                    quantity = form_item.cleaned_data.get("quantity")
+                    unit_price = form_item.cleaned_data.get("unit_price")
+
+                    stock_entry = Stock.objects.filter(product=product, store=store).first()
+                    if not stock_entry or stock_entry.quantity < quantity:
+                        messages.error(request, f"Not enough stock for {product.name}")
+                        return render(request, 'dashboard/invoice_form.html', {'form': form, 'formset': formset})
+
+                    stock_entry.quantity -= quantity
+                    stock_entry.save()
+
+                    item = form_item.save(commit=False)
+                    item.sale = sale
+                    item.cost_price = getattr(stock_entry, 'cost_price', 0) or 0
+                    item.save()
+
+                    total += quantity * unit_price
+                    cost_total += quantity * item.cost_price
+
+                sale.total_amount = total
+                sale.save(update_fields=["total_amount"])
+
+                # ✅ ACCOUNTING TRANSACTIONS
+                from accounting.services import record_transaction_by_slug
+
+                # Sales Revenue (credit) → Accounts Receivable (debit)
+                txn = record_transaction_by_slug(
+                    source_slug='sales-revenue',
+                    destination_slug='accounts-receivable',
+                    amount=total,
+                    description=f"Invoice - {sale.receipt_number}"
+                )
+
+                # Inventory Asset (credit) → COGS (debit)
+                record_transaction_by_slug(
+                    source_slug='inventory-assets',
+                    destination_slug='cost-of-goods-sold',
+                    amount=cost_total,
+                    description=f"COGS for {sale.receipt_number}"
+                )
+
+                sale.transaction = txn
+                sale.save(update_fields=["transaction"])
+
+                AuditLog.objects.create(
+                    user=request.user,
+                    action='adjustment',
+                    description=f"{request.user.username} created invoice {sale.receipt_number} for {sale.customer.name}"
+                )
+
+                messages.success(request, f"Invoice recorded successfully. Invoice No: {sale.receipt_number}")
+                return redirect('inventory:invoice_create')
+
+        except Exception as e:
+            logger.error(f"❌ Invoice creation failed: {e}")
+            messages.error(request, "Something went wrong while saving the invoice.")
+
+    return render(request, 'dashboard/invoice_form.html', {
         'form': form,
         'formset': formset
     })
+
 
 @login_required
 def get_stock_quantity(request):

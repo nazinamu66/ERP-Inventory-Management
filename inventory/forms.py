@@ -1,6 +1,8 @@
 from django import forms
 from django.forms import inlineformset_factory
 from .models import SaleReturn, SaleReturnItem
+from accounting.models import Account
+
 
 class SaleReturnForm(forms.ModelForm):
     class Meta:
@@ -53,28 +55,37 @@ class PurchaseOrderItemForm(forms.ModelForm):
 
 
 class SaleForm(forms.ModelForm):
+    bank_account = forms.ModelChoiceField(
+        queryset=Account.objects.filter(type='bank'),
+        required=False,
+        label="Select Bank Account"
+    )
+
     class Meta:
         model = Sale
-        fields = ['customer', 'store', 'payment_status', 'payment_method', 'bank', 'amount_paid', 'note']
+        fields = [
+            'customer', 'store', 'payment_status', 'payment_method',
+            'bank_account', 'amount_paid', 'note'
+        ]
         widgets = {
             'customer': forms.Select(attrs={'class': 'form-control'}),
             'store': forms.Select(attrs={'class': 'form-control'}),
             'payment_status': forms.Select(attrs={'class': 'form-control'}),
             'payment_method': forms.Select(attrs={'class': 'form-control'}),
+            'bank_account': forms.Select(attrs={'class': 'form-control'}),
             'amount_paid': forms.NumberInput(attrs={'class': 'form-control'}),
-            'note': forms.Textarea(attrs={'class': 'form-control'}),
+            'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
     def __init__(self, *args, **kwargs):
         request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
 
-        self.fields['bank'].widget.attrs.update({'class': 'form-control', 'id': 'id_bank'})
-
         if request and hasattr(request.user, 'role') and request.user.role in ['manager', 'staff', 'sales', 'clerk']:
             self.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
             self.fields['store'].initial = request.user.store
 
+        self.fields['bank_account'].queryset = Account.objects.filter(type='bank')
 
 # ✅ Using "form" as prefix to match HTML/JS
 SaleItemFormSet = inlineformset_factory(
@@ -84,6 +95,58 @@ SaleItemFormSet = inlineformset_factory(
     extra=1,
     can_delete=True
 )
+
+# inventory/forms.py
+
+class InvoiceForm(forms.ModelForm):
+    class Meta:
+        model = Sale
+        fields = ['customer', 'store', 'note']  # Invoices don’t need payment info yet
+
+        widgets = {
+            'customer': forms.Select(attrs={'class': 'form-control'}),
+            'store': forms.Select(attrs={'class': 'form-control'}),
+            'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        if request and hasattr(request.user, 'role') and request.user.role in ['manager', 'staff', 'sales', 'clerk']:
+            self.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
+            self.fields['store'].initial = request.user.store
+
+
+class SaleReceiptForm(forms.ModelForm):
+    bank_account = forms.ModelChoiceField(
+        queryset=Account.objects.filter(type='asset'),
+        required=False,
+        label="Select Bank Account"
+    )
+
+    class Meta:
+        model = Sale
+        fields = [
+            'customer', 'store', 'payment_method', 'bank_account', 'note'
+        ]
+        widgets = {
+            'customer': forms.Select(attrs={'class': 'form-control'}),
+            'store': forms.Select(attrs={'class': 'form-control'}),
+            'payment_method': forms.Select(attrs={'class': 'form-control'}),
+            'bank_account': forms.Select(attrs={'class': 'form-control'}),
+            'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        if request and hasattr(request.user, 'role') and request.user.role in ['manager', 'staff', 'sales', 'clerk']:
+            self.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
+            self.fields['store'].initial = request.user.store
+
+        self.fields['bank_account'].queryset = Account.objects.filter(type='asset')
 
 
 class PurchaseForm(forms.ModelForm):

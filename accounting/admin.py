@@ -1,12 +1,20 @@
 from django.contrib import admin
 from django.db.models import Sum
 from .models import Account, Transaction
+from .services import calculate_account_balances
+
+from .models import SupplierPayment
+admin.site.register(SupplierPayment)
+
+
 
 @admin.register(Account)
 class AccountAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'type', 'opening_balance', 'current_balance')
-    list_filter = ('type',)
-    search_fields = ('name',)
+    list_display = ('name', 'type', 'opening_balance', 'calculated_balance')
+
+    def calculated_balance(self, obj):
+        balances = calculate_account_balances()
+        return balances.get(obj, 0.00)
 
     @admin.display(description='Balance')
     def current_balance(self, obj):

@@ -3,6 +3,21 @@ from django.conf import settings
 from users.models import User
 from django.utils.timezone import now
 from django.contrib.auth import get_user_model
+import accounting.models as accounting_models
+
+
+PAYMENT_STATUS_CHOICES = [
+    ('paid', 'Paid'),
+    ('unpaid', 'Unpaid'),
+    ('partial', 'Partially Paid'),
+]
+
+PAYMENT_METHOD_CHOICES = [
+    ('cash', 'Cash'),
+    ('bank', 'Bank Transfer'),
+    ('pos', 'POS'),
+]
+
 
 User = get_user_model()
 
@@ -89,16 +104,16 @@ class Product(models.Model):
 
 
 class Stock(models.Model):
-    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='stocks')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stocks', default=1)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    store = models.ForeignKey(Store, on_delete=models.CASCADE)
     quantity = models.IntegerField(default=0)
-    last_updated = models.DateTimeField(auto_now=True)
+    cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # ✅ Add this line
 
     class Meta:
-        unique_together = ('store', 'product')
+        unique_together = ('product', 'store')
 
     def __str__(self):
-        return f"{self.product.name} @ {self.store.name}: {self.quantity}"
+        return f"{self.product.name} at {self.store.name}"
 
 
 
@@ -151,52 +166,66 @@ class Customer(models.Model):
 
 from django.utils.crypto import get_random_string
 
-class BankAccount(models.Model):
-    name = models.CharField(max_length=100)
-    account_number = models.CharField(max_length=100, blank=True, null=True)
-    bank_name = models.CharField(max_length=100, blank=True, null=True)
-    is_active = models.BooleanField(default=True)
+# class BankAccount(models.Model):
+#     name = models.CharField(max_length=100)
+#     account_number = models.CharField(max_length=100, blank=True, null=True)
+#     bank_name = models.CharField(max_length=100, blank=True, null=True)
+#     is_active = models.BooleanField(default=True)
 
-    def __str__(self):
-        return self.name
+#     def __str__(self):
+#         return self.name
 
 
     
 class Sale(models.Model):
-    PAYMENT_STATUS_CHOICES = [
-        ('paid', 'Paid'),
-        ('partial', 'Partially Paid'),
-        ('unpaid', 'Unpaid'),
+    SALE_TYPE_CHOICES = [
+        ('receipt', 'Sales Receipt'),  # Payment made immediately
+        ('invoice', 'Invoice'),        # Credit sale, paid later
     ]
 
-    PAYMENT_METHOD_CHOICES = [
-        ('cash', 'Cash'),
-        ('bank', 'Bank Transfer'),
-        ('pos', 'POS'),
-        ('other', 'Other'),
-    ]
-    receipt_number = models.CharField(max_length=255, unique=True, blank=True, null=True)
-    customer = models.ForeignKey('Customer', on_delete=models.SET_NULL, null=True, blank=True)
+    sale_type = models.CharField(
+        max_length=10,
+        choices=SALE_TYPE_CHOICES,
+        default='receipt'
+    )
+
+    # ✅ Only keep this one version of transaction
+    transaction = models.OneToOneField(
+        'accounting.Transaction',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sale_record"
+    )
+
+
+
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
-    sold_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='paid')
-    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='cash')
-    bank = models.ForeignKey('BankAccount', on_delete=models.SET_NULL, null=True, blank=True)  # 👈 Add this
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-
-
-    note = models.TextField(blank=True, null=True)
+    sold_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     sale_date = models.DateTimeField(auto_now_add=True)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='unpaid')
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, blank=True, null=True)
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    balance_due = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # ✅ New field
+    receipt_number = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    note = models.TextField(blank=True, null=True)
+
+    def update_payment_status(self):
+        self.balance_due = self.total_amount - self.amount_paid
+        if self.amount_paid == 0:
+            self.payment_status = 'unpaid'
+        elif self.amount_paid < self.total_amount:
+            self.payment_status = 'partial'
+        else:
+            self.payment_status = 'paid'
+        self.save(update_fields=['payment_status', 'amount_paid', 'balance_due'])
+
 
     def __str__(self):
-        return f"Sale #{self.id} - {self.customer} - {self.payment_status}"
-    
+        return f"{self.customer.name} - {self.receipt_number or 'Unnumbered Sale'}"
 
-    # def save(self, *args, **kwargs):
-    #     if not self.receipt_number:
-    #         self.receipt_number = "RCPT-" + get_random_string(8).upper()
-    #     super().save(*args, **kwargs)
 
 
 class SaleItem(models.Model):
@@ -205,13 +234,19 @@ class SaleItem(models.Model):
     quantity = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
 
+    # ✅ New field to record cost price at time of sale
+    cost_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     def total_returned(self):
         return sum(item.quantity_returned for item in self.return_items.all())
-
 
     @property
     def subtotal(self):
         return self.quantity * self.unit_price
+
+    @property
+    def total_cost(self):
+        return self.quantity * self.cost_price
 
     def __str__(self):
         return f"{self.product.name} x{self.quantity}"

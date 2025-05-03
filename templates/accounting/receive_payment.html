@@ -1,0 +1,46 @@
+<!-- templates/accounting/receive_payment.html -->
+
+{% extends 'dashboard/base.html' %}
+{% block title %}Receive Payment{% endblock %}
+
+{% block content %}
+<h3>Receive Payment from Customer</h3>
+
+<form method="POST" class="card p-4">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="mb-3">
+        <label>{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}
+        <div class="text-danger">{{ field.errors }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-success">Record Payment</button>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const customerField = document.getElementById('id_customer');
+            const invoiceField = document.getElementById('id_invoice');
+        
+            if (customerField && invoiceField) {
+                customerField.addEventListener('change', function () {
+                    const customerId = this.value;
+                    fetch(`/accounting/api/unpaid-invoices/?customer_id=${customerId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            invoiceField.innerHTML = '<option value="">---------</option>';
+                            data.forEach(inv => {
+                                const option = document.createElement('option');
+                                option.value = inv.id;
+                                option.text = `${inv.receipt_number} - ₹${inv.total_amount}`;
+                                invoiceField.appendChild(option);
+                            });
+                        });
+                });
+            }
+        });
+        </script>        
+</form>
+{% endblock %}

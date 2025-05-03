@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Customer Ledger PDF</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; margin: 30px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .logo { height: 80px; margin-bottom: 10px; }
+        h2, h3 { margin: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .right { text-align: right; }
+        .footer { margin-top: 30px; text-align: right; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    {% if company and company.logo %}
+        <img src="{{ company.logo.url }}" class="logo"><br>
+    {% endif %}
+    {% if company %}
+        <h2>{{ company.name }}</h2>
+        <p>{{ company.address }}</p>
+        <p>{{ company.contact_email }} | {{ company.contact_phone }}</p>
+        <p>{{ company.website }}</p>
+    {% endif %}
+</div>
+
+<h3>Customer Ledger</h3>
+<p><strong>Customer:</strong> {{ customer.name }}</p>
+<p><strong>Period:</strong> {{ from }} to {{ to }}</p>
+{% if type %}
+    <p><strong>Filtered by Type:</strong> {{ type }}</p>
+{% endif %}
+
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Balance</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in ledger %}
+            <tr>
+                <td>{{ entry.date }}</td>
+                <td>{{ entry.type }}</td>
+                <td>{{ entry.amount }}</td>
+                <td>{{ entry.balance }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<div class="footer">
+    <strong>Final Balance:</strong> {{ final_balance|floatformat:2 }}
+</div>
+
+</body>
+</html>

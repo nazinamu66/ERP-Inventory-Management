@@ -1,50 +1,86 @@
-from .models import Account, Transaction
-from django.db.models import Sum
-from django.db import models
+from .models import Account, Transaction, TransactionLine
 from django.db import transaction as db_transaction
+from django.db.models import Sum
 from django.utils import timezone
 
+# System-defined accounts (slugs will be used for identification)
+DEFAULT_ACCOUNTS = [
+    {"name": "Undeposited Funds", "slug": "undeposited-funds", "type": "asset"},
+    {"name": "Sales Revenue", "slug": "sales-revenue", "type": "revenue"},
+    {"name": "Inventory Asset", "slug": "inventory-assets", "type": "asset"},
+    {"name": "Cost of Goods Sold", "slug": "cost-of-goods-sold", "type": "expense"},
+    {"name": "Accounts Receivable", "slug": "accounts-receivable", "type": "asset"},
+    {"name": "Accounts Payable", "slug": "accounts-payable", "type": "liability"},
+]
 
 
-# accounting/services.py
+def create_system_accounts():
+    """
+    Creates essential system accounts with fixed slugs and types.
+    If a name exists but slug is missing, it updates the slug.
+    """
+    created = []
+    for acc in DEFAULT_ACCOUNTS:
+        existing = Account.objects.filter(name=acc["name"]).first()
+        if existing:
+            if not existing.slug:
+                existing.slug = acc["slug"]
+                existing.save(update_fields=["slug"])
+            continue
+
+        obj, is_created = Account.objects.get_or_create(
+            slug=acc["slug"],
+            defaults={"name": acc["name"], "type": acc["type"]}
+        )
+        if is_created:
+            created.append(obj.name)
+    return created
+
 
 def calculate_account_balances():
+    """
+    Calculates account balances based on account type logic:
+    - Assets & Expenses: opening + debits - credits
+    - Liabilities, Income, Equity: opening + credits - debits
+    """
     balances = {}
-
     accounts = Account.objects.all()
-    for account in accounts:
-        incoming = Transaction.objects.filter(destination_account=account).aggregate(total=models.Sum('amount'))['total'] or 0
-        outgoing = Transaction.objects.filter(source_account=account).aggregate(total=models.Sum('amount'))['total'] or 0
 
-        # 🔥 NEW FORMULA 🔥
-        balance = account.opening_balance + (incoming - outgoing)
+    for account in accounts:
+        debit_total = TransactionLine.objects.filter(account=account).aggregate(
+            debit_sum=Sum('debit')
+        )['debit_sum'] or 0
+
+        credit_total = TransactionLine.objects.filter(account=account).aggregate(
+            credit_sum=Sum('credit')
+        )['credit_sum'] or 0
+
+        if account.type in ['asset', 'expense']:
+            balance = account.opening_balance + debit_total - credit_total
+        elif account.type in ['liability', 'income', 'equity']:
+            balance = account.opening_balance + credit_total - debit_total
+        else:
+            balance = account.opening_balance + debit_total - credit_total
+
         balances[account] = balance
 
     return balances
 
 
-def record_transaction(source_account_name, destination_account_name, amount, description=""):
+def record_transaction(source_account_slug, destination_account_slug, amount, description=""):
     """
-    Proper double-entry transaction recording.
-    - Debit destination account
-    - Credit source account
+    Creates a double-entry transaction:
+    - Credits the source account (identified by slug)
+    - Debits the destination account (identified by slug)
+
+    Returns: Transaction instance
+    Raises: Account.DoesNotExist if slug is incorrect
     """
-    try:
-        source = Account.objects.get(name=source_account_name)
-    except Account.DoesNotExist:
-        raise ValueError(f"Source Account '{source_account_name}' not found.")
-
-    try:
-        destination = Account.objects.get(name=destination_account_name)
-    except Account.DoesNotExist:
-        raise ValueError(f"Destination Account '{destination_account_name}' not found.")
-
-    if amount <= 0:
-        raise ValueError("Amount must be greater than zero.")
+    source = Account.objects.get(slug=source_account_slug)
+    destination = Account.objects.get(slug=destination_account_slug)
 
     with db_transaction.atomic():
-        # Credit Source Account (outgoing money)
-        Transaction.objects.create(
+        txn = Transaction.objects.create(
             source_account=source,
             destination_account=destination,
             amount=amount,
@@ -52,11 +88,68 @@ def record_transaction(source_account_name, destination_account_name, amount, de
             created_at=timezone.now()
         )
 
-        # Debit Destination Account (incoming money)
-        Transaction.objects.create(
-            source_account=destination,
-            destination_account=source,
-            amount=-amount,
-            description=f"Auto reverse: {description}",
+        # Double-entry lines
+        TransactionLine.objects.create(transaction=txn, account=destination, debit=amount)
+        TransactionLine.objects.create(transaction=txn, account=source, credit=amount)
+
+        return txn
+
+def record_transaction_by_slug(source_slug, destination_slug, amount, description=""):
+    """
+    Create a transaction using fixed account slugs instead of names.
+    - Credits source
+    - Debits destination
+    """
+    try:
+        source = Account.objects.get(slug=source_slug)
+        destination = Account.objects.get(slug=destination_slug)
+        print(f"✅ Recording transaction: {source.name} (credit) → {destination.name} (debit), Amount: {amount}")
+    except Account.DoesNotExist as e:
+        print(f"❌ Account not found: {e}")
+        raise
+    
+    with db_transaction.atomic():
+        txn = Transaction.objects.create(
+            source_account=source,
+            destination_account=destination,
+            amount=amount,
+            description=description,
             created_at=timezone.now()
         )
+
+        TransactionLine.objects.create(transaction=txn, account=destination, debit=amount)
+        TransactionLine.objects.create(transaction=txn, account=source, credit=amount)
+
+        return txn
+
+
+
+def reverse_transaction(original_transaction_id, reason="Reversal"):
+    """
+    Reverses a transaction by creating an equal and opposite entry.
+    Returns: the new reversed Transaction instance.
+    """
+    try:
+        original = Transaction.objects.get(id=original_transaction_id)
+
+        with db_transaction.atomic():
+            reversed_txn = Transaction.objects.create(
+                source_account=original.destination_account,
+                destination_account=original.source_account,
+                amount=original.amount,
+                description=f"REVERSAL: {reason}",
+                created_at=timezone.now()
+            )
+
+            for line in original.lines.all():
+                TransactionLine.objects.create(
+                    transaction=reversed_txn,
+                    account=line.account,
+                    debit=line.credit,
+                    credit=line.debit
+                )
+
+            return reversed_txn
+
+    except Transaction.DoesNotExist:
+        raise ValueError(f"Original transaction #{original_transaction_id} not found.")

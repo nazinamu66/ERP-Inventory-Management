@@ -74,9 +74,11 @@
                 <a class="nav-link" data-bs-toggle="collapse" href="#salesMenu">Sales</a>
                 <div class="collapse" id="salesMenu">
                     <div class="nav flex-column ms-3">
-                        <a class="nav-link" href="{% url 'inventory:sale_create' %}">Record Sale</a>
+                        <a class="nav-link" href="{% url 'inventory:sale_receipt_create' %}">Sales Receipt (Cash)</a>
+                        <a class="nav-link" href="{% url 'inventory:invoice_create' %}">Sales Invoice (Credit)</a>
                         <a class="nav-link" href="{% url 'inventory:sale_list' %}">Sales History</a>
                         <a class="nav-link" href="{% url 'inventory:customer_create' %}">Add Customer</a>
+
                     </div>
                 </div>
             {% endif %}
@@ -106,7 +108,18 @@
                     <a class="nav-link" href="{% url 'inventory:purchase_order_list' %}">Purchase Orders</a>
                 </div>
             </div>
-  
+            <!-- Accounting Menu -->
+            {% if request.user.role in 'accountant admin manager' or request.user.is_superuser %}
+            <a class="nav-link" data-bs-toggle="collapse" href="#accountingMenu">Accounting</a>
+            <div class="collapse" id="accountingMenu">
+                <div class="nav flex-column ms-3">
+                    <a class="nav-link" href="{% url 'accounting:receive_customer_payment' %}">Receive Payment</a>
+                    <a class="nav-link" href="{% url 'accounting:customer_list' %}">Customer Balances</a>
+                    <a class="nav-link" href="{% url 'accounting:account_balances' %}">Chart of Accounts</a>
+                </div>
+            </div>
+            {% endif %}
+
 
             <!-- Management -->
             {% if request.user.is_superuser or request.user.role == 'manager' %}

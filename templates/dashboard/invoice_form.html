@@ -1,8 +1,8 @@
 {% extends 'dashboard/base.html' %}
-{% block title %}Record Sale{% endblock %}
+{% block title %}Create Invoice{% endblock %}
 
 {% block content %}
-<h3>New Sale</h3>
+<h3>Create Invoice</h3>
 
 <form method="POST" novalidate>
     {% csrf_token %}
@@ -11,14 +11,14 @@
 
     <div id="formset-meta" data-form-count="{{ formset.total_form_count|default:0 }}"></div>
 
-    <!-- SALE DETAILS -->
+    <!-- INVOICE DETAILS -->
     <div class="card mb-4 p-3">
-        <h5>Sale Info</h5>
+        <h5>Invoice Info</h5>
 
         <div class="mb-3">
-            <label>Receipt Number</label>
+            <label>Invoice Number</label>
             <input type="text" class="form-control" 
-                   value="{{ form.instance.receipt_number|default:'(Will be generated after save)' }}" readonly>
+                   value="{{ form.instance.receipt_number|default:'(Generated after save)' }}" readonly>
         </div>
 
         {% for field in form %}
@@ -30,14 +30,9 @@
             {% endif %}
         </div>
         {% endfor %}
-
-        <div class="mb-3" id="bank-wrapper" style="display: none;">
-            <label for="id_bank">Bank</label>
-            {{ form.bank }}
-        </div>
     </div>
 
-    <!-- SALE ITEMS -->
+    <!-- INVOICE ITEMS -->
     <div class="card mb-4 p-3">
         <h5>Items</h5>
 
@@ -88,41 +83,37 @@
         </div>
     </div>
 
-    <button type="submit" class="btn btn-success">Submit Sale</button>
+    <button type="submit" class="btn btn-success">Submit Invoice</button>
 </form>
 
-<!-- Stock Info -->
-<div id="stock-info" class="alert alert-info d-none mt-4">
-    <strong>Current Stock:</strong> <span id="stock-value">-</span>
-</div>
-
 <script>
+document.addEventListener('change', function (e) {
+    if (e.target.name.endsWith('-product')) {
+        const row = e.target.closest('.formset-item');
+        const productId = e.target.value;
+        const storeId = document.getElementById('id_store')?.value;
+
+        if (productId && storeId) {
+            fetch(`/dashboard/api/get-stock/?product_id=${productId}&store_id=${storeId}`)
+                .then(response => response.json())
+                .then(data => {
+                    row.querySelector('.stock-info')?.remove();
+                    const span = document.createElement('span');
+                    span.className = 'stock-info text-muted small ms-2';
+                    span.innerText = `(In stock: ${data.quantity})`;
+                    e.target.closest('.col-md-4').appendChild(span);
+                });
+        }
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function () {
-    const paymentMethod = document.getElementById('id_payment_method');
-    const bankWrapper = document.getElementById('bank-wrapper');
-    const bankSelect = document.getElementById('id_bank');
     const storeField = document.getElementById('id_store');
-    const stockInfo = document.getElementById('stock-info');
-    const stockValue = document.getElementById('stock-value');
     const totalSpan = document.getElementById('grand-total');
     const totalInput = document.getElementById('id_grand_total');
     const formsetPrefix = 'form';
     const formContainer = document.getElementById('items-container');
     let formIdx = parseInt(document.getElementById('formset-meta').dataset.formCount || 0);
-
-    function toggleBankField() {
-        if (paymentMethod?.value === 'bank_transfer') {
-            bankWrapper.style.display = 'block';
-        } else {
-            bankWrapper.style.display = 'none';
-            if (bankSelect) bankSelect.value = '';
-        }
-    }
-
-    if (paymentMethod) {
-        paymentMethod.addEventListener('change', toggleBankField);
-        toggleBankField();
-    }
 
     function updateTotal() {
         let total = 0;
@@ -137,29 +128,9 @@ document.addEventListener('DOMContentLoaded', function () {
         totalInput.value = total.toFixed(2);
     }
 
-    function fetchStock(productField) {
-        const productId = productField.value;
-        const storeId = storeField?.value;
-        if (!productId || !storeId) return stockInfo.classList.add('d-none');
-
-        fetch(`/dashboard/api/get-stock/?product_id=${productId}&store_id=${storeId}`)
-            .then(res => res.json())
-            .then(data => {
-                stockValue.textContent = data.quantity;
-                stockInfo.classList.remove('d-none');
-            })
-            .catch(() => {
-                stockValue.textContent = 'Error';
-                stockInfo.classList.remove('d-none');
-            });
-    }
-
     function attachListeners(scope) {
         scope.querySelectorAll('input').forEach(input => {
             input.addEventListener('input', updateTotal);
-        });
-        scope.querySelectorAll('[id$="-product"]').forEach(productField => {
-            productField.addEventListener('change', () => fetchStock(productField));
         });
     }
 
@@ -172,7 +143,6 @@ document.addEventListener('DOMContentLoaded', function () {
         wrapper.innerHTML = newHtml;
         const newForm = wrapper.firstElementChild;
 
-        // 🔧 Fix name/id for newly added form fields
         newForm.querySelectorAll('[name]').forEach(el => {
             el.name = el.name.replace('__prefix__', formIdx);
         });
@@ -197,10 +167,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 document.getElementById('id_form-TOTAL_FORMS').value = formIdx;
             }
         }
-    });
-
-    storeField?.addEventListener('change', () => {
-        document.querySelectorAll('[id^="id_form-"][id$="-product"]').forEach(fetchStock);
     });
 
     updateTotal();

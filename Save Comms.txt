@@ -26,3 +26,22 @@ Continue from our last Inventory Management work.
 
 
 python manage.py runserver 0.0.0.0:8000
+
+from accounting.services import create_system_accounts
+create_system_accounts()
+
+from django.db import connection
+
+with connection.cursor() as cursor:
+    cursor.execute("ALTER SEQUENCE accounting_account_id_seq RESTART WITH 1;")
+    cursor.execute("ALTER SEQUENCE accounting_transaction_id_seq RESTART WITH 1;")
+    cursor.execute("ALTER SEQUENCE accounting_transactionline_id_seq RESTART WITH 1;")
+
+from accounting.models import Account, Transaction, TransactionLine
+
+# Delete child objects first (respect FK constraints)
+TransactionLine.objects.all().delete()
+Transaction.objects.all().delete()
+Account.objects.all().delete()
+
+print("✅ All accounts, transactions, and lines have been deleted.")

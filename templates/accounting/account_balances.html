@@ -13,14 +13,16 @@
         </tr>
     </thead>
     <tbody>
-        {% for account, balance in balances.items %}
-        <tr>
-            <td>{{ account.name }}</td>
-            <td>{{ account.get_type_display }}</td>
-            <td>{{ balance|floatformat:2 }}</td>
-        </tr>
-        {% endfor %}
+        <!-- accounting/account_balances.html -->
+{% for account, balance in balances.items %}
+<tr>
+    <td><a href="{% url 'accounting:account_ledger' account.slug %}">{{ account.name }}</a></td>
+    <td>{{ account.type|capfirst }}</td>
+    <td>{{ balance|floatformat:2 }}</td>
+</tr>
+{% endfor %}
+
+        
     </tbody>
 </table>
-
 {% endblock %}

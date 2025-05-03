@@ -1,0 +1,30 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Ledger - {{ account.name }}{% endblock %}
+
+{% block content %}
+<h3>Ledger for {{ account.name }}</h3>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Debit</th>
+            <th>Credit</th>
+            <th>Balance</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in history %}
+        <tr>
+            <td>{{ row.date|date:"Y-m-d H:i" }}</td>
+            <td>{{ row.description }}</td>
+            <td>{{ row.debit|floatformat:2 }}</td>
+            <td>{{ row.credit|floatformat:2 }}</td>
+            <td>{{ row.balance|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5">No transactions found for this account.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
