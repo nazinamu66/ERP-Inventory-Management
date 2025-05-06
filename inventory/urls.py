@@ -28,6 +28,7 @@ urlpatterns = [
 
     # Audit Logs
     path('audit-logs/', views.audit_log_list_view, name='audit_log_list'),
+    path('audit-logs/<int:pk>/', views.audit_log_detail_view, name='log_detail'),
 
     # Purchase Orders
     path('purchases/new/', views.create_purchase_order, name='create_purchase_order'),
@@ -61,11 +62,13 @@ urlpatterns = [
     path('suppliers/', views.supplier_list, name='supplier_list'),
     path('suppliers/add/', views.add_supplier, name='add_supplier'),
     path('suppliers/<int:supplier_id>/edit/', views.supplier_edit, name='supplier_edit'),
+    
 
     # Inventory Report
     path('dashboard/inventory/report/', views.inventory_report_view, name='inventory_report'),
     path('dashboard/inventory/export/csv/', views.export_inventory_csv, name='export_inventory_csv'),
     path('dashboard/inventory/export/pdf/', views.export_inventory_pdf, name='export_inventory_pdf'),
+    
 ]
 
 # Static file serving

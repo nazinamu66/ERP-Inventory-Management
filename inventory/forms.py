@@ -152,12 +152,12 @@ class SaleReceiptForm(forms.ModelForm):
 class PurchaseForm(forms.ModelForm):
     class Meta:
         model = Purchase
-        fields = ['product', 'store', 'quantity', 'supplier_name', 'note']
+        fields = ['product', 'store', 'quantity', 'supplier', 'note']
         widgets = {
             'product': forms.Select(attrs={'class': 'form-control'}),
             'store': forms.Select(attrs={'class': 'form-control'}),
             'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
-            'supplier_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'supplier': forms.TextInput(attrs={'class': 'form-control'}),
             'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 

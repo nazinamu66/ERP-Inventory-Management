@@ -1,5 +1,4 @@
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db import transaction
 from django.http import HttpResponse
@@ -11,8 +10,6 @@ from django.core.paginator import Paginator
 from .forms import PurchaseForm
 from .models import Purchase
 from .forms import SaleForm, SaleItemFormSet
-from django.http import JsonResponse
-from .models import Stock
 from django.db.models import Q
 from users.models import User
 import csv
@@ -34,24 +31,17 @@ import weasyprint
 from .forms import SaleReturnForm, SaleReturnItemFormSet, SaleReturnItem
 from django.forms import inlineformset_factory
 from django.http import HttpResponseForbidden
-from .models import SaleReturn, SaleReturnItem
 from django.views.decorators.http import require_POST
 from accounting.services import record_transaction
 import logging
 from django.http import JsonResponse
-from django.contrib import messages
-from django.db import transaction
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-from .forms import SaleForm, SaleItemFormSet
-from .models import Sale, SaleItem, Stock, AuditLog
-from .models import Sale
-from django.core.paginator import Paginator
+from .models import Sale, SaleItem, Stock
 from django.db.models import Sum
 from .forms import InvoiceForm
-
-
-
+from .models import AuditLog
+from users.models import User 
 
 
 @login_required
@@ -66,6 +56,7 @@ def customer_create(request):
         form = CustomerForm()
     return render(request, 'dashboard/customer_form.html', {'form': form})
 
+
 @login_required
 def supplier_list(request):
     if not request.user.is_superuser and request.user.role != 'manager':
@@ -74,6 +65,7 @@ def supplier_list(request):
 
     suppliers = Supplier.objects.all().order_by('name')
     return render(request, 'dashboard/supplier_list.html', {'suppliers': suppliers})
+
 
 @login_required
 def supplier_edit(request, supplier_id):
@@ -118,6 +110,7 @@ def export_po_receipt_pdf(request, po_id):
     response['Content-Disposition'] = f'filename="PO-{po.id}-receipt.pdf"'
     return response
 
+
 @login_required
 def inventory_report_view(request):
     role = getattr(request.user, 'role', '').lower()
@@ -150,6 +143,7 @@ def inventory_report_view(request):
         'selected_store': store_id
     })
 
+
 @login_required
 def export_inventory_csv(request):
     role = getattr(request.user, 'role', '').lower()
@@ -174,6 +168,7 @@ def export_inventory_csv(request):
         ])
 
     return response
+
 
 @login_required
 def export_inventory_pdf(request):
@@ -205,6 +200,7 @@ def export_inventory_pdf(request):
     response['Content-Disposition'] = 'attachment; filename="inventory_report.pdf"'
     pisa.CreatePDF(html, dest=response)
     return response
+
 
 @login_required
 def redirect_dashboard(request):
@@ -321,7 +317,10 @@ def receive_purchase_order(request, po_id):
                     source_slug="accounts-payable",
                     destination_slug="inventory-assets",
                     amount=total_value,
-                    description=f"PO-{po.id} Goods Received"
+                    description=f"PO-{po.id} Goods Received",
+                    supplier=po.supplier  # ✅ Add this line
+
+                    
                 )
 
                 messages.success(request, "Purchase Order received and accounting recorded.")
@@ -333,6 +332,7 @@ def receive_purchase_order(request, po_id):
 
     stores = Store.objects.all() if request.user.is_superuser or request.user.role == 'admin' else None
     return render(request, 'dashboard/receive_purchase_order.html', {'po': po, 'stores': stores})
+
 
 @login_required
 def purchase_order_list(request):
@@ -382,6 +382,7 @@ def add_supplier(request):
         form = SupplierForm()
 
     return render(request, 'dashboard/supplier_form.html', {'form': form})
+
 
 @login_required
 def delete_sale(request, sale_id):
@@ -444,6 +445,8 @@ def export_sales_pdf(request):
 
     pisa.CreatePDF(src=html, dest=response)
     return response
+
+
 @login_required
 def export_purchase_orders_csv(request):
     orders = filter_purchase_orders(request)
@@ -589,18 +592,41 @@ def export_sales_csv(request):
 
     return response
 
-@login_required
+
 def audit_log_list_view(request):
-    if not request.user.is_superuser and request.user.role != 'manager':
-        return render(request, 'errors/permission_denied.html', status=403)
+    logs = AuditLog.objects.all().select_related("user")
+    users = User.objects.all()
 
-    logs = AuditLog.objects.select_related('user').order_by('-timestamp')
-    paginator = Paginator(logs, 25)  # 25 logs per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    # Get all distinct actions from all logs (not filtered logs)
+    all_actions = AuditLog.objects.order_by('action').values_list('action', flat=True).distinct()
 
-    return render(request, 'dashboard/audit_log_list.html', {'page_obj': page_obj})
+    # Filters
+    user_id = request.GET.get("user")
+    if user_id:
+        logs = logs.filter(user_id=user_id)
 
+    action = request.GET.get("action")
+    if action:
+        logs = logs.filter(action=action)
+
+    start = request.GET.get("start")
+    end = request.GET.get("end")
+    if start and end:
+        try:
+            start_date = datetime.strptime(start, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end, "%Y-%m-%d").date()
+            logs = logs.filter(timestamp__date__range=[start_date, end_date])
+        except ValueError:
+            pass  # silently ignore invalid date formats
+
+    paginator = Paginator(logs.order_by("-timestamp"), 25)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(request, "dashboard/audit_log_list.html", {
+        "page_obj": page_obj,
+        "users": users,
+        "action_choices": all_actions,
+    })
 
 @login_required
 def sale_return_view(request, sale_id):
@@ -761,26 +787,46 @@ def sale_detail_view(request, pk):
     })
 
 
+
 @login_required
 def admin_dashboard(request):
-    total_products = Product.objects.count()
-    total_stock = Stock.objects.aggregate(total=models.Sum('quantity'))['total'] or 0
-
+    # 📅 Date calculations
     today = now().date()
-    sales_today = Sale.objects.filter(sale_date__date=today).count()
-
     start_of_week = today - timedelta(days=today.weekday())
+
+    # 📊 Sales data
+    sales_today = Sale.objects.filter(sale_date__date=today).count()
     sales_this_week = Sale.objects.filter(sale_date__date__gte=start_of_week).count()
+    total_sales = Sale.objects.count()
+    total_revenue = Sale.objects.aggregate(revenue=Sum('total_amount'))['revenue'] or 0
 
-    low_stock_threshold = 10  # or make this configurable later
-    low_stock_products = Product.objects.filter(total_quantity__lt=low_stock_threshold)
+    # 📦 Inventory data
+    total_products = Product.objects.count()
+    total_stock = Stock.objects.aggregate(total=Sum('quantity'))['total'] or 0
+    low_stock_threshold = 10
+    low_stock_products = (
+        Product.objects
+        .annotate(total_store_stock=Sum('stock__quantity'))
+        .filter(total_store_stock__lt=low_stock_threshold)
+    )
 
+    # 🧾 Recent sales items
+    recent_sales = (
+        SaleItem.objects
+        .select_related('sale', 'product', 'sale__store')
+        .order_by('-sale__sale_date')[:5]
+    )
+
+    # 🧠 Context for the template
     context = {
         'total_products': total_products,
         'total_stock': total_stock,
+        'total_sales': total_sales,
+        'total_revenue': total_revenue,
         'sales_today': sales_today,
         'sales_this_week': sales_this_week,
         'low_stock_products': low_stock_products,
+        'recent_sales': recent_sales,
     }
 
     return render(request, 'dashboard/admin.html', context)
@@ -789,6 +835,11 @@ def admin_dashboard(request):
 
 
 logger = logging.getLogger(__name__)
+
+def audit_log_detail_view(request, pk):
+    log = get_object_or_404(AuditLog, pk=pk)
+    return render(request, "dashboard/log_detail.html", {"log": log})
+
 
 # inventory/views.py
 

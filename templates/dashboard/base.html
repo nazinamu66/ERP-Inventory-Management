@@ -116,6 +116,12 @@
                     <a class="nav-link" href="{% url 'accounting:receive_customer_payment' %}">Receive Payment</a>
                     <a class="nav-link" href="{% url 'accounting:customer_list' %}">Customer Balances</a>
                     <a class="nav-link" href="{% url 'accounting:account_balances' %}">Chart of Accounts</a>
+                    <a class="nav-link" href="{% url 'accounting:record_account_transfer' %}">Transfer Funds</a>
+                    <a class="nav-link" href="{% url 'accounting:withdraw_funds' %}">Withdraw Funds</a>
+                    <a class="nav-link" href="{% url 'accounting:record_account_deposit' %}">💰 Deposit Funds</a>
+                    <a class="nav-link" href="{% url 'accounting:record_expense' %}">💸 Record Expense</a>
+
+                      
                 </div>
             </div>
             {% endif %}

@@ -44,7 +44,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     "widget_tweaks",
-    'accounting', 
+    # 'accounting', 
+    'accounting.apps.AccountingConfig',
+
 
 
     # Our Apps

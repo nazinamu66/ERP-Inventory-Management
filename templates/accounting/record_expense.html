@@ -1,0 +1,31 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Record Expense{% endblock %}
+
+{% block content %}
+<h3>Record a Business Expense</h3>
+<form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label for="{{ form.expense_account.id_for_label }}">Expense Category</label>
+      {{ form.expense_account }}
+    </div>
+    <div class="form-group">
+      <label for="{{ form.payment_account.id_for_label }}">Paid From</label>
+      {{ form.payment_account }}
+    </div>
+    <div class="form-group">
+      <label for="{{ form.amount.id_for_label }}">Amount</label>
+      {{ form.amount }}
+    </div>
+    <div class="form-group">
+      <label for="{{ form.date.id_for_label }}">Date</label>
+      {{ form.date }}
+    </div>
+    <div class="form-group">
+      <label for="{{ form.description.id_for_label }}">Description</label>
+      {{ form.description }}
+    </div>
+    <button type="submit" class="btn btn-danger">Submit Expense</button>
+  </form>
+  
+{% endblock %}

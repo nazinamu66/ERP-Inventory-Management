@@ -2,6 +2,8 @@ from django.urls import path
 from .views import account_balances_view
 from . import views
 from .views import customer_ledger_pdf  # Make sure this exists in views.py
+from .views import record_supplier_payment
+
 
 
 
@@ -15,6 +17,13 @@ urlpatterns = [
     path('customers/', views.customer_list_with_balances, name='customer_list'),
     path('customers/<int:customer_id>/ledger/', views.customer_ledger_view, name='customer_ledger'),
     path('customers/<int:customer_id>/ledger/pdf/', customer_ledger_pdf, name='customer_ledger_pdf'),
+    path('supplier-balances/', views.supplier_balances, name='supplier_balances'),
+    path('suppliers/<int:supplier_id>/ledger/', views.supplier_ledger_view, name='supplier_ledger'),
+    path('supplier-payment/', record_supplier_payment, name='record_supplier_payment'),
+    path('transfer/', views.record_account_transfer, name='record_account_transfer'),
+    path('withdraw/', views.withdraw_funds, name='withdraw_funds'),
+    path('deposit/', views.record_account_deposit, name='record_account_deposit'),
+    path('record-expense/', views.record_expense, name='record_expense'),
 
 ]
 

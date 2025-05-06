@@ -5,12 +5,28 @@ from django.utils.timezone import now
 from inventory.models import Supplier
 
 
+
+class SupplierLedger(models.Model):
+    supplier = models.ForeignKey('inventory.Supplier', on_delete=models.CASCADE, related_name='ledger_entries')
+    transaction = models.ForeignKey('accounting.Transaction', on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    entry_type = models.CharField(max_length=10, choices=(('debit', 'Debit'), ('credit', 'Credit')))
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.supplier.name} - {self.entry_type} - {self.amount}"
+
+
+
 # ✅ Local imports not required for models within the same file
 # ❌ Removed: from inventory.models import Sale
 # ❌ Removed: from .accounting_base import Account, Transaction
 
+from django.utils.text import slugify
+
 class Account(models.Model):
     ACCOUNT_TYPES = [
+        ('bank', 'Bank'),
         ('asset', 'Asset'),
         ('liability', 'Liability'),
         ('income', 'Income'),
@@ -18,20 +34,27 @@ class Account(models.Model):
     ]
 
     name = models.CharField(max_length=255, unique=True)
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField(unique=True, blank=True)  # allow blank, but generate automatically
     type = models.CharField(max_length=20, choices=ACCOUNT_TYPES)
     opening_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
 
 
 class Transaction(models.Model):
-    source_account = models.ForeignKey(Account, related_name='source_transactions', on_delete=models.CASCADE)
-    destination_account = models.ForeignKey(Account, related_name='destination_transactions', on_delete=models.CASCADE)
+    description = models.TextField(blank=True)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    description = models.TextField(blank=True, null=True)
-    created_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    source_account = models.ForeignKey(Account, null=True, blank=True, related_name='outgoing_transactions', on_delete=models.SET_NULL)
+    destination_account = models.ForeignKey(Account, null=True, blank=True, related_name='incoming_transactions', on_delete=models.SET_NULL)
+    supplier = models.ForeignKey(Supplier, null=True, blank=True, on_delete=models.SET_NULL)  # if applicable
+
 
     def __str__(self):
         return f"{self.description} - {self.amount}"

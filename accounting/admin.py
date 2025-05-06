@@ -6,11 +6,21 @@ from .services import calculate_account_balances
 from .models import SupplierPayment
 admin.site.register(SupplierPayment)
 
+from django.contrib import admin
+from .models import SupplierLedger
+
+@admin.register(SupplierLedger)
+class SupplierLedgerAdmin(admin.ModelAdmin):
+    list_display = ('supplier', 'transaction', 'amount', 'entry_type', 'created_at')
+    list_filter = ('supplier', 'entry_type')
+    search_fields = ('transaction__description', 'supplier__name')
 
 
 @admin.register(Account)
 class AccountAdmin(admin.ModelAdmin):
     list_display = ('name', 'type', 'opening_balance', 'calculated_balance')
+    prepopulated_fields = {"slug": ("name",)}  # auto-fills slug field in admin
+
 
     def calculated_balance(self, obj):
         balances = calculate_account_balances()

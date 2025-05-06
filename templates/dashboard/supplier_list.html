@@ -26,6 +26,7 @@
             {% if request.user.is_superuser %}
             <td>
                 <a href="{% url 'inventory:supplier_edit' supplier.id %}" class="btn btn-sm btn-warning">Edit</a>
+                <a href="{% url 'accounting:supplier_ledger' supplier.id %}" class="btn btn-sm btn-outline-primary">View Ledger</a>
             </td>
             {% endif %}
         </tr>

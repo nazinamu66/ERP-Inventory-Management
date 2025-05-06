@@ -1,0 +1,13 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Log Detail{% endblock %}
+
+{% block content %}
+<h3>Audit Log Detail</h3>
+<table class="table">
+    <tr><th>User</th><td>{{ log.user.username }}</td></tr>
+    <tr><th>Action</th><td>{{ log.get_action_display }}</td></tr>
+    <tr><th>Description</th><td>{{ log.description }}</td></tr>
+    <tr><th>Timestamp</th><td>{{ log.timestamp }}</td></tr>
+</table>
+<a href="{% url 'inventory:audit_log_list' %}" class="btn btn-secondary">Back to Logs</a>
+{% endblock %}

@@ -45,3 +45,15 @@ Transaction.objects.all().delete()
 Account.objects.all().delete()
 
 print("✅ All accounts, transactions, and lines have been deleted.")
+
+venv) venvCapo@Capos ERP-Inventory-Management % lsof -i :8000
+
+COMMAND   PID USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
+Python  52323 Capo    5u  IPv4 0xc73ee25a9767dde8      0t0  TCP *:irdmi (LISTEN)
+Python  52323 Capo    7u  IPv4 0x9d1c35516b223a32      0t0  TCP localhost:irdmi->localhost:54634 (CLOSED)
+Python  52323 Capo    8u  IPv4 0xeb1558835aa05a98      0t0  TCP localhost:irdmi->localhost:54635 (CLOSED)
+(venv) venvCapo@Capos ERP-Inventory-Management % kill -9 52323
+(venv) venvCapo@Capos ERP-Inventory-Management % python manage.py runserver 0.0.0.0:8000
+Watching for file changes with StatReloader
+Performing system checks...
+

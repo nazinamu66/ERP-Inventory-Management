@@ -1,0 +1,18 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Record Deposit{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2 class="mb-4">💰 Record a Deposit</h2>
+
+  <form method="post" class="card p-4 shadow-sm">
+    {% csrf_token %}
+    {{ form.as_p }}
+
+    <div class="mt-3">
+      <button type="submit" class="btn btn-success">Deposit Funds</button>
+      <a href="{% url 'accounting:account_balances' %}" class="btn btn-secondary ml-2">Back to Accounts</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'dashboard/base.html' %}
+{% block content %}
+<h2>Withdraw Funds</h2>
+
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Withdraw</button>
+</form>
+
+<a href="{% url 'accounting:account_balances' %}">← Back to Account Balances</a>
+{% endblock %}

@@ -19,9 +19,158 @@ from .models import CustomerPayment, Account, TransactionLine, SupplierPayment
 from .services import calculate_account_balances, record_transaction_by_slug
 from inventory.models import Customer, Sale
 from inventory.models import CompanyProfile  # adjust if path differs
-
+from accounting.models import SupplierLedger
 from inventory.models import Supplier
 from inventory.models import Purchase
+from .forms import SupplierPaymentForm, AccountTransferForm
+from .forms import WithdrawForm
+from .forms import AccountDepositForm
+from .forms import ExpenseForm
+
+
+
+@login_required
+def record_account_deposit(request):
+    if request.method == 'POST':
+        form = AccountDepositForm(request.POST)
+        if form.is_valid():
+            destination = form.cleaned_data['destination_account']
+            amount = form.cleaned_data['amount']
+            note = form.cleaned_data['note'] or f"Deposit to {destination.name}"
+
+            try:
+                transaction = record_transaction_by_slug(
+                    destination_slug=destination.slug,
+                    amount=amount,
+                    description=note,
+                    is_deposit=True
+                )
+                messages.success(request, f"₹{amount} deposited into {destination.name}.")
+                return redirect('accounting:account_ledger', slug=destination.slug)
+            except Exception as e:
+                messages.error(request, f"Deposit failed: {e}")
+    else:
+        form = AccountDepositForm()
+
+    return render(request, 'accounting/record_account_deposit.html', {'form': form})
+
+
+@login_required
+def record_supplier_payment(request):
+    if request.method == 'POST':
+        form = SupplierPaymentForm(request.POST)
+        if form.is_valid():
+            supplier = form.cleaned_data['supplier']
+            account = form.cleaned_data['account']
+            amount = form.cleaned_data['amount']
+            payment_date = form.cleaned_data['payment_date']
+            note = form.cleaned_data['note']
+
+            try:
+                # 1. Record transaction — this should also handle SupplierLedger
+                transaction = record_transaction_by_slug(
+                    source_slug=account.slug,
+                    destination_slug="accounts-payable",  # supplier control account
+                    amount=amount,
+                    description=note or f"Payment to {supplier.name}",
+                    supplier=supplier
+                )
+
+                # 3. Redirect to correct ledger URL name
+                messages.success(request, f"Payment of ₹{amount} recorded for {supplier.name}")
+                return redirect('accounting:supplier_ledger', supplier_id=supplier.id)
+
+            except Exception as e:
+                messages.error(request, f"Transaction failed: {e}")
+    else:
+        form = SupplierPaymentForm()
+
+    return render(request, 'accounting/record_supplier_payment.html', {'form': form})
+
+@login_required
+def record_expense(request):
+    if request.method == 'POST':
+        form = ExpenseForm(request.POST)
+        if form.is_valid():
+            expense_account = form.cleaned_data['expense_account']
+            payment_account = form.cleaned_data['payment_account']
+            amount = form.cleaned_data['amount']
+            description = form.cleaned_data['description'] or f"Expense: {expense_account.name}"
+
+            try:
+                transaction = record_transaction_by_slug(
+                    source_slug=payment_account.slug,
+                    destination_slug=expense_account.slug,
+                    amount=amount,
+                    description=description
+                )
+
+                messages.success(request, f"Expense of ₹{amount} recorded to {expense_account.name}")
+                return redirect('accounting:account_ledger', slug=expense_account.slug)
+
+            except Exception as e:
+                messages.error(request, f"Failed to record expense: {e}")
+    else:
+        form = ExpenseForm()
+
+    return render(request, 'accounting/record_expense.html', {'form': form})
+
+
+# views.py
+@login_required
+def record_account_transfer(request):
+    if request.method == 'POST':
+        form = AccountTransferForm(request.POST)
+        if form.is_valid():
+            source = form.cleaned_data['source_account']
+            destination = form.cleaned_data['destination_account']
+            amount = form.cleaned_data['amount']
+            note = form.cleaned_data['note'] or f"Transfer from {source.name} to {destination.name}"
+
+            try:
+                # Reuse your central transaction logic
+                transaction = record_transaction_by_slug(
+                    source_slug=source.slug,
+                    destination_slug=destination.slug,
+                    amount=amount,
+                    description=note
+                )
+
+                messages.success(request, f"₹{amount} transferred from {source.name} to {destination.name}.")
+                return redirect('accounting:account_ledger', slug=source.slug)
+
+            except Exception as e:
+                messages.error(request, f"Transfer failed: {e}")
+    else:
+        form = AccountTransferForm()
+
+    return render(request, 'accounting/record_account_transfer.html', {'form': form})
+
+@login_required
+def withdraw_funds(request):
+    if request.method == 'POST':
+        form = WithdrawForm(request.POST)
+        if form.is_valid():
+            account = form.cleaned_data['account']
+            amount = form.cleaned_data['amount']
+            note = form.cleaned_data['note'] or f"Withdrawal from {account.name}"
+
+            try:
+                record_transaction_by_slug(
+                    source_slug=account.slug,
+                    destination_slug=None,  # Not needed for withdrawal
+                    amount=amount,
+                    description=note,
+                    is_withdrawal=True  # Add this flag in your util
+                )
+                messages.success(request, f"₹{amount} withdrawn from {account.name}.")
+                return redirect('accounting:account_ledger', slug=account.slug)
+            except Exception as e:
+                messages.error(request, f"Withdrawal failed: {e}")
+    else:
+        form = WithdrawForm()
+
+    return render(request, 'accounting/withdraw_funds.html', {'form': form})
 
 @login_required
 def supplier_balances(request):
@@ -46,10 +195,36 @@ def supplier_balances(request):
 
     return render(request, 'dashboard/supplier_balances.html', {'suppliers': supplier_data})
 
+@login_required
+def supplier_ledger_view(request, supplier_id):
+    if not request.user.is_superuser and request.user.role != 'manager':
+        messages.error(request, "Not authorized.")
+        return render(request, 'errors/permission_denied.html', status=403)
 
+    supplier = get_object_or_404(Supplier, id=supplier_id)
+    ledger_entries = SupplierLedger.objects.filter(supplier=supplier).select_related('transaction').order_by('transaction__created_at')
 
+    balance = 0
+    ledger = []
 
-# ------------------- Helper -------------------
+    for entry in ledger_entries:
+        # 🧾 For supplier ledger: DEBIT = reduce balance (payment), CREDIT = increase balance (purchase)
+        amount = entry.amount if entry.entry_type == 'credit' else -entry.amount
+        balance += amount
+        ledger.append({
+            'date': entry.transaction.created_at,
+            'type': entry.get_entry_type_display(),
+            'amount': amount,
+            'balance': balance,
+            'note': entry.transaction.description or ''
+        })
+    context = {
+        'supplier': supplier,
+        'ledger': ledger,
+        'final_balance': balance
+    }
+    return render(request, 'dashboard/supplier_ledger.html', context)
+
 
 def parse_date_with_tz(date_str, end_of_day=False):
     """Parses a YYYY-MM-DD string and returns a timezone-aware datetime."""
@@ -97,7 +272,6 @@ def build_customer_ledger(customer, from_date_str=None, to_date_str=None):
     return ledger, running_balance
 
 
-# ------------------- Views -------------------
 
 @login_required
 def customer_list_with_balances(request):

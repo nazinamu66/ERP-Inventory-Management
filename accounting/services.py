@@ -3,6 +3,7 @@ from django.db import transaction as db_transaction
 from django.db.models import Sum
 from django.utils import timezone
 
+
 # System-defined accounts (slugs will be used for identification)
 DEFAULT_ACCOUNTS = [
     {"name": "Undeposited Funds", "slug": "undeposited-funds", "type": "asset"},
@@ -94,34 +95,70 @@ def record_transaction(source_account_slug, destination_account_slug, amount, de
 
         return txn
 
-def record_transaction_by_slug(source_slug, destination_slug, amount, description=""):
+def record_transaction_by_slug(source_slug=None, destination_slug=None, amount=0, description="", supplier=None, is_withdrawal=False, is_deposit=False):
     """
-    Create a transaction using fixed account slugs instead of names.
-    - Credits source
-    - Debits destination
+    Create a transaction using slugs instead of account names.
+    - For normal transfers: both source and destination slugs are used.
+    - For withdrawals: only source_slug is used, and amount is deducted.
+    - For deposits: only destination_slug is used, and amount is added.
     """
+    from django.utils import timezone
+    from django.db import transaction as db_transaction
+    from .models import Account, Transaction, TransactionLine
+
     try:
-        source = Account.objects.get(slug=source_slug)
-        destination = Account.objects.get(slug=destination_slug)
-        print(f"✅ Recording transaction: {source.name} (credit) → {destination.name} (debit), Amount: {amount}")
+        source = Account.objects.get(slug=source_slug) if source_slug else None
+        destination = Account.objects.get(slug=destination_slug) if destination_slug else None
     except Account.DoesNotExist as e:
         print(f"❌ Account not found: {e}")
         raise
-    
-    with db_transaction.atomic():
-        txn = Transaction.objects.create(
-            source_account=source,
-            destination_account=destination,
-            amount=amount,
-            description=description,
-            created_at=timezone.now()
-        )
 
-        TransactionLine.objects.create(transaction=txn, account=destination, debit=amount)
-        TransactionLine.objects.create(transaction=txn, account=source, credit=amount)
+    with db_transaction.atomic():
+        if is_withdrawal:
+            # For withdrawal, we treat a special destination account like "Owner's Drawings"
+            owner_drawings = Account.objects.get_or_create(slug="owners-drawings", defaults={"name": "Owner's Drawings"})[0]
+            txn = Transaction.objects.create(
+                source_account=source,
+                destination_account=owner_drawings,
+                amount=amount,
+                description=description,
+                supplier=supplier,
+                created_at=timezone.now()
+            )
+            TransactionLine.objects.create(transaction=txn, account=source, credit=amount)
+            TransactionLine.objects.create(transaction=txn, account=owner_drawings, debit=amount)
+
+        elif is_deposit:
+            # Deposit: money enters the business from "Owner's Contribution"
+            capital_account = Account.objects.get_or_create(slug="owners-contribution", defaults={"name": "Owner's Contribution"})[0]
+            txn = Transaction.objects.create(
+                source_account=capital_account,
+                destination_account=destination,
+                amount=amount,
+                description=description,
+                supplier=supplier,
+                created_at=timezone.now()
+            )
+            TransactionLine.objects.create(transaction=txn, account=destination, debit=amount)
+            TransactionLine.objects.create(transaction=txn, account=capital_account, credit=amount)
+
+        else:
+            # Normal transfer between two accounts
+            if not source or not destination:
+                raise ValueError("Both source and destination must be provided for a transfer.")
+
+            txn = Transaction.objects.create(
+                source_account=source,
+                destination_account=destination,
+                amount=amount,
+                description=description,
+                supplier=supplier,
+                created_at=timezone.now()
+            )
+            TransactionLine.objects.create(transaction=txn, account=destination, debit=amount)
+            TransactionLine.objects.create(transaction=txn, account=source, credit=amount)
 
         return txn
-
 
 
 def reverse_transaction(original_transaction_id, reason="Reversal"):

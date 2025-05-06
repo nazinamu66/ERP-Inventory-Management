@@ -1,0 +1,62 @@
+{% extends 'dashboard/base.html' %}
+{% load custom_filters %}
+{% block title %}{{ supplier.name }} - Ledger{% endblock %}
+
+{% block content %}
+<h3>{{ supplier.name }} – Ledger</h3>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Debit (₹)</th>
+            <th>Credit (₹)</th>
+            <th>Balance (₹)</th>
+            <th>Note</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in ledger %}
+        <tr>
+            <td>{{ entry.date|date:"Y-m-d" }}</td>
+<td>{{ entry.type }}</td>
+<td>
+    {% if entry.amount > 0 %}
+        {{ entry.amount|floatformat:2 }}
+    {% endif %}
+</td>
+<td>
+    {% if entry.amount < 0 %}
+        {{ entry.amount|abs_val|floatformat:2 }}
+    {% endif %}
+</td>
+
+            <td>{{ entry.balance|floatformat:2 }}</td>
+            <td>{{ entry.note }}</td>
+        </tr>        
+        {% endfor %}
+        <tfoot>
+            <tr>
+                <td colspan="4"><strong>Final Balance</strong></td>
+                <td colspan="2">
+                    <strong>
+                        ₹{{ final_balance|floatformat:2 }}
+                        {% if final_balance > 0 %}
+                            (You Owe Supplier)
+                        {% elif final_balance < 0 %}
+                            (Supplier Owes You)
+                        {% else %}
+                            (Settled)
+                        {% endif %}
+                    </strong>
+                </td>
+            </tr>
+        </tfoot>
+        
+    </tbody>
+    <a href="{% url 'accounting:record_supplier_payment' %}" class="btn btn-sm btn-success float-right">Record Deposit</a>
+
+    
+</table>
+{% endblock %}

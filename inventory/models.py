@@ -5,7 +5,6 @@ from django.utils.timezone import now
 from django.contrib.auth import get_user_model
 import accounting.models as accounting_models
 
-
 PAYMENT_STATUS_CHOICES = [
     ('paid', 'Paid'),
     ('unpaid', 'Unpaid'),
@@ -166,16 +165,6 @@ class Customer(models.Model):
 
 from django.utils.crypto import get_random_string
 
-# class BankAccount(models.Model):
-#     name = models.CharField(max_length=100)
-#     account_number = models.CharField(max_length=100, blank=True, null=True)
-#     bank_name = models.CharField(max_length=100, blank=True, null=True)
-#     is_active = models.BooleanField(default=True)
-
-#     def __str__(self):
-#         return self.name
-
-
     
 class Sale(models.Model):
     SALE_TYPE_CHOICES = [
@@ -278,7 +267,7 @@ class Purchase(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
-    supplier_name = models.CharField(max_length=255, blank=True, null=True)
+    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
     note = models.TextField(blank=True, null=True)
     purchased_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True)
     purchase_date = models.DateTimeField(default=now)
