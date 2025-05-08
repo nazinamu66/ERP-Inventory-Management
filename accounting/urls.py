@@ -24,6 +24,7 @@ urlpatterns = [
     path('withdraw/', views.withdraw_funds, name='withdraw_funds'),
     path('deposit/', views.record_account_deposit, name='record_account_deposit'),
     path('record-expense/', views.record_expense, name='record_expense'),
-
+    path('customers/<int:customer_id>/delete/', views.delete_customer, name='delete_customer'),
+    path('customers/<int:customer_id>/edit/', views.edit_customer, name='edit_customer'),
 ]
 

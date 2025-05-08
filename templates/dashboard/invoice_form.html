@@ -1,6 +1,5 @@
 {% extends 'dashboard/base.html' %}
 {% block title %}Create Invoice{% endblock %}
-
 {% block content %}
 <h3>Create Invoice</h3>
 
@@ -20,6 +19,7 @@
             <input type="text" class="form-control" 
                    value="{{ form.instance.receipt_number|default:'(Generated after save)' }}" readonly>
         </div>
+        <a href="{% url 'inventory:customer_create' %}?next={% url 'inventory:invoice_create' %}">Add Customer</a>
 
         {% for field in form %}
         <div class="mb-3">

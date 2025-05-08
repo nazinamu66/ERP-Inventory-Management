@@ -3,9 +3,9 @@
 
 {% block content %}
 <h3>Add Customer</h3>
-<form method="POST">
+<form method="post" action="?next={{ next }}">
     {% csrf_token %}
     {{ form.as_p }}
-    <button type="submit" class="btn btn-success">Save Customer</button>
-</form>
-{% endblock %}
+    <button type="submit">Save Customer</button>
+  </form>
+  {% endblock %}

@@ -20,6 +20,7 @@
             <input type="text" class="form-control" 
                    value="{{ form.instance.receipt_number|default:'(Will be generated after save)' }}" readonly>
         </div>
+        <a href="{% url 'inventory:customer_create' %}?next={% url 'inventory:sale_receipt_create' %}">Add Customer</a>
 
         {% for field in form.visible_fields %}
         <div class="mb-3">

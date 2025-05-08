@@ -27,6 +27,19 @@ Continue from our last Inventory Management work.
 
 python manage.py runserver 0.0.0.0:8000
 
+python manage.py flush
+
+Django will prompt: You have requested a flush. Are you sure you want to do this?
+
+Type yes.
+
+This resets everything (users, transactions, products, etc.) and sets up a fresh superuser.
+
+Then:
+
+python manage.py createsuperuser
+
+In shell
 from accounting.services import create_system_accounts
 create_system_accounts()
 

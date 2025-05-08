@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.conf import settings
 from django.utils.timezone import now
 from inventory.models import Supplier
+from inventory.models import Store 
 
 
 
@@ -51,6 +52,8 @@ class Transaction(models.Model):
     description = models.TextField(blank=True)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
+    store = models.ForeignKey(Store, null=True, blank=True, on_delete=models.SET_NULL)
+
     source_account = models.ForeignKey(Account, null=True, blank=True, related_name='outgoing_transactions', on_delete=models.SET_NULL)
     destination_account = models.ForeignKey(Account, null=True, blank=True, related_name='incoming_transactions', on_delete=models.SET_NULL)
     supplier = models.ForeignKey(Supplier, null=True, blank=True, on_delete=models.SET_NULL)  # if applicable

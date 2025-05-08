@@ -4,6 +4,8 @@ from users.models import User
 from django.utils.timezone import now
 from django.contrib.auth import get_user_model
 import accounting.models as accounting_models
+# from accounting.models import Transaction  # add this import
+
 
 PAYMENT_STATUS_CHOICES = [
     ('paid', 'Paid'),
@@ -268,6 +270,12 @@ class Purchase(models.Model):
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
+    transaction = models.ForeignKey(
+        'accounting.Transaction',  # ← use string-based reference
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL
+    )    
     note = models.TextField(blank=True, null=True)
     purchased_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True)
     purchase_date = models.DateTimeField(default=now)

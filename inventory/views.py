@@ -42,19 +42,27 @@ from django.db.models import Sum
 from .forms import InvoiceForm
 from .models import AuditLog
 from users.models import User 
+from django.http import HttpResponseRedirect
+
 
 
 @login_required
 def customer_create(request):
+    next_url = request.GET.get('next', request.path)  # default to self
+
     if request.method == 'POST':
         form = CustomerForm(request.POST)
         if form.is_valid():
             form.save()
             messages.success(request, "Customer added successfully.")
-            return redirect('inventory:sale_create')  # Or wherever you want to redirect
+            return HttpResponseRedirect(next_url)
     else:
         form = CustomerForm()
-    return render(request, 'dashboard/customer_form.html', {'form': form})
+
+    return render(request, 'dashboard/customer_form.html', {
+        'form': form,
+        'next': next_url,  # pass this to template for the form action
+    })
 
 
 @login_required
@@ -318,7 +326,9 @@ def receive_purchase_order(request, po_id):
                     destination_slug="inventory-assets",
                     amount=total_value,
                     description=f"PO-{po.id} Goods Received",
-                    supplier=po.supplier  # ✅ Add this line
+                    supplier=po.supplier,  # ✅ Add this line
+                    store= store # ← required!
+
 
                     
                 )
@@ -906,7 +916,9 @@ def sale_receipt_create(request):
                     source_slug='sales-revenue',
                     destination_slug=bank_account.slug if bank_account else 'undeposited-funds',
                     amount=total,
-                    description=description
+                    description=description,
+                    store=request.user.store  # ← required!
+
                 )
 
                 print(f"🔍 COGS Amount: {cost_total}")
@@ -915,6 +927,7 @@ def sale_receipt_create(request):
                     source_slug='inventory-assets',
                     destination_slug='cost-of-goods-sold',
                     amount=cost_total,
+                    store=request.user.store,  # ← required!
                     description=f"COGS for {sale.receipt_number}"
                 )
 
@@ -997,6 +1010,7 @@ def invoice_create(request):
                     source_slug='sales-revenue',
                     destination_slug='accounts-receivable',
                     amount=total,
+                    store=request.user.store,  # ← required!
                     description=f"Invoice - {sale.receipt_number}"
                 )
 
@@ -1005,7 +1019,9 @@ def invoice_create(request):
                     source_slug='inventory-assets',
                     destination_slug='cost-of-goods-sold',
                     amount=cost_total,
-                    description=f"COGS for {sale.receipt_number}"
+                    description=f"COGS for {sale.receipt_number}",
+                    store=request.user.store  # ← required!
+
                 )
 
                 sale.transaction = txn

@@ -26,6 +26,10 @@ from .forms import SupplierPaymentForm, AccountTransferForm
 from .forms import WithdrawForm
 from .forms import AccountDepositForm
 from .forms import ExpenseForm
+from django.views.decorators.http import require_POST
+from inventory.forms import CustomerForm
+
+
 
 
 
@@ -43,7 +47,9 @@ def record_account_deposit(request):
                     destination_slug=destination.slug,
                     amount=amount,
                     description=note,
-                    is_deposit=True
+                    is_deposit=True,
+                    store=request.user.store  # ← required!
+
                 )
                 messages.success(request, f"₹{amount} deposited into {destination.name}.")
                 return redirect('accounting:account_ledger', slug=destination.slug)
@@ -73,7 +79,9 @@ def record_supplier_payment(request):
                     destination_slug="accounts-payable",  # supplier control account
                     amount=amount,
                     description=note or f"Payment to {supplier.name}",
-                    supplier=supplier
+                    supplier=supplier,
+                    store=request.user.store  # ← required!
+
                 )
 
                 # 3. Redirect to correct ledger URL name
@@ -102,7 +110,9 @@ def record_expense(request):
                     source_slug=payment_account.slug,
                     destination_slug=expense_account.slug,
                     amount=amount,
-                    description=description
+                    description=description,
+                    store=request.user.store  # ← required!
+
                 )
 
                 messages.success(request, f"Expense of ₹{amount} recorded to {expense_account.name}")
@@ -133,7 +143,9 @@ def record_account_transfer(request):
                     source_slug=source.slug,
                     destination_slug=destination.slug,
                     amount=amount,
-                    description=note
+                    description=note,
+                    store=request.user.store  # ← required!
+
                 )
 
                 messages.success(request, f"₹{amount} transferred from {source.name} to {destination.name}.")
@@ -161,7 +173,9 @@ def withdraw_funds(request):
                     destination_slug=None,  # Not needed for withdrawal
                     amount=amount,
                     description=note,
-                    is_withdrawal=True  # Add this flag in your util
+                    is_withdrawal=True,  # Add this flag in your util
+                    store=request.user.store  # ← required!
+
                 )
                 messages.success(request, f"₹{amount} withdrawn from {account.name}.")
                 return redirect('accounting:account_ledger', slug=account.slug)
@@ -273,9 +287,20 @@ def build_customer_ledger(customer, from_date_str=None, to_date_str=None):
 
 
 
+from django.db.models import Q
+
 @login_required
 def customer_list_with_balances(request):
+    query = request.GET.get('q', '')
     customers = Customer.objects.all()
+
+    if query:
+        customers = customers.filter(
+            Q(name__icontains=query) |
+            Q(email__icontains=query) |
+            Q(phone__icontains=query)
+        )
+
     customer_data = []
 
     for customer in customers:
@@ -294,7 +319,10 @@ def customer_list_with_balances(request):
             'balance': balance
         })
 
-    return render(request, 'accounting/customer_list.html', {'customers': customer_data})
+    return render(request, 'accounting/customer_list.html', {
+        'customers': customer_data,
+        'query': query,
+    })
 
 
 @login_required
@@ -356,18 +384,54 @@ def customer_ledger_pdf(request, customer_id):
     response['Content-Disposition'] = f'filename=ledger_{customer.id}.pdf'
     return response
 
+@login_required
+def edit_customer(request, customer_id):
+    customer = get_object_or_404(Customer, pk=customer_id)
+    if request.method == 'POST':
+        form = CustomerForm(request.POST, instance=customer)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Customer details updated successfully.')
+            return redirect('accounting:customer_list')
+    else:
+        form = CustomerForm(instance=customer)
+    return render(request, 'accounting/edit_customer.html', {'form': form, 'customer': customer})
+
+
+@login_required
+@require_POST
+def delete_customer(request, customer_id):
+    customer = get_object_or_404(Customer, pk=customer_id)
+    customer_name = customer.name
+    customer.delete()
+    messages.success(request, f"Customer '{customer_name}' deleted successfully.")
+    return redirect('accounting:customer_list')
+
+
+# from django.db.models import Q
 
 @login_required
 def account_ledger_view(request, slug):
     account = get_object_or_404(Account, slug=slug)
-    lines = TransactionLine.objects.filter(account=account) \
-        .select_related('transaction') \
+    user = request.user
+
+    # For managers, assume `user.store` gives their assigned store
+    user_store = getattr(user, 'store', None)
+
+    # Filter transaction lines based on store
+    transaction_lines = TransactionLine.objects.filter(account=account)
+
+    if user_store:
+        # Only include lines where the transaction belongs to the manager's store
+        transaction_lines = transaction_lines.filter(transaction__store=user_store)
+
+    transaction_lines = transaction_lines.select_related('transaction') \
         .order_by('transaction__created_at', 'id')
 
     balance = Decimal(account.opening_balance or 0)
     history = []
 
-    for line in lines:
+    for line in transaction_lines:
         balance += Decimal(line.debit or 0) - Decimal(line.credit or 0)
         history.append({
             'date': line.transaction.created_at,
@@ -383,6 +447,7 @@ def account_ledger_view(request, slug):
     })
 
 
+
 @login_required
 def receive_customer_payment(request):
     if request.method == 'POST':
@@ -395,7 +460,9 @@ def receive_customer_payment(request):
                 source_slug='accounts-receivable',
                 destination_slug=payment.bank_account.slug if payment.payment_method == 'bank_transfer' else 'undeposited-funds',
                 amount=payment.amount,
-                description=description
+                description=description,
+                store=request.user.store  # ← required!
+
             )
 
             payment.transaction = txn
@@ -429,7 +496,14 @@ def get_unpaid_invoices(request):
 
 @login_required
 def account_balances_view(request):
-    balances = calculate_account_balances()
+    user = request.user
+
+    # Admins see all; Managers see their store’s data only
+    if user.role == 'manager' and user.store:
+        balances = calculate_account_balances(store=user.store)
+    else:
+        balances = calculate_account_balances()
+
     return render(request, 'accounting/account_balances.html', {
         'balances': balances
     })
