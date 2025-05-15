@@ -1,27 +1,77 @@
 {% extends 'dashboard/base.html' %}
+{% load static %}
 {% block title %}Manager Dashboard{% endblock %}
 {% block content %}
 
 <h3>Welcome, {{ request.user.username }}</h3>
 <p class="text-muted">Store: {{ store.name }}</p>
 
-<hr>
-
+<!-- KPI Cards -->
 <div class="row mb-4">
-    <div class="col-md-6">
-        <div class="card bg-light p-3">
-            <h5>Total Products</h5>
-            <p class="display-6">{{ total_products }}</p>
+    <div class="col-md-2">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h6>Total Products</h6>
+                <p class="fs-5">{{ total_products }}</p>
+            </div>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="card bg-light p-3">
-            <h5>Today's Sales</h5>
-            <p class="display-6">{{ total_sales_today }}</p>
+    <div class="col-md-2">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h6>Total Stock</h6>
+                <p class="fs-5">{{ total_stock }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-warning text-dark">
+            <div class="card-body">
+                <h6>Sales Today</h6>
+                <p class="fs-5">{{ sales_today }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-dark text-white">
+            <div class="card-body">
+                <h6>Sales This Week</h6>
+                <p class="fs-5">{{ sales_week }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card bg-secondary text-white">
+            <div class="card-body">
+                <h6>Total Revenue</h6>
+                <p class="fs-5">₹{{ total_revenue|floatformat:2 }}</p>
+            </div>
         </div>
     </div>
 </div>
 
+<!-- Charts -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5>Top 5 Selling Products</h5>
+                <canvas id="top-products-chart" height="150"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5>Revenue This Week</h5>
+                <canvas id="weekly-revenue-chart" height="150"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Purchase Orders -->
 <h5>Recent Purchase Orders</h5>
 <table class="table table-bordered table-striped">
     <thead>
@@ -52,10 +102,68 @@
     </tbody>
 </table>
 
-<a href="{% url 'inventory:create_purchase_order' %}" class="btn btn-primary">New Purchase Order</a>
-
 {% if request.user.can_transfer_stock %}
-    <a href="{% url 'inventory:stock_transfer' %}" class="btn btn-outline-secondary ms-2">Transfer Stock</a>
+    <a href="{% url 'inventory:stock_transfer' %}" class="btn btn-outline-secondary">Transfer Stock</a>
 {% endif %}
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // Top products chart
+    const productLabels = {{ product_labels|safe }};
+    const productValues = {{ product_values|safe }};
+
+    new Chart(document.getElementById("top-products-chart"), {
+        type: "bar",
+        data: {
+            labels: productLabels,
+            datasets: [{
+                label: "Quantity Sold",
+                data: productValues,
+                backgroundColor: "rgba(54, 162, 235, 0.6)",
+                borderColor: "rgb(54, 162, 235)",
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+
+    // Weekly revenue chart
+    const revLabels = {{ revenue_labels|safe }};
+    const revValues = {{ revenue_values|safe }};
+
+    new Chart(document.getElementById("weekly-revenue-chart"), {
+        type: "line",
+        data: {
+            labels: revLabels,
+            datasets: [{
+                label: "Revenue (₹)",
+                data: revValues,
+                borderColor: "rgb(75, 192, 192)",
+                backgroundColor: "rgba(75, 192, 192, 0.2)",
+                fill: true,
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: true }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+</script>
 
 {% endblock %}

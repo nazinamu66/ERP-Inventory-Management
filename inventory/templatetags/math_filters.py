@@ -21,6 +21,14 @@ def subtract(value, arg):
         return ''
 
 
+@register.filter
+def mul(value, arg):
+    try:
+        return float(value) * float(arg)
+    except:
+        return ''
+
+
 
 @register.filter
 def dict_get(d, key):

@@ -4,11 +4,23 @@
 {% block content %}
 <h3>Customer Balances</h3>
 
-<form method="get" class="mb-3">
+<form method="get" class="mb-3 d-flex gap-2 align-items-center">
     <input type="text" name="q" placeholder="Search by name, email, phone"
-           value="{{ query }}" class="form-control" style="max-width: 300px; display: inline-block;">
-    <button type="submit" class="btn btn-primary">Search</button>
-    {% if query %}
+           value="{{ query }}" class="form-control" style="max-width: 300px;">
+
+           <select name="sort" class="form-select" style="max-width: 220px;">
+            <option value="">Sort by</option>
+            <option value="balance_asc" {% if sort == "balance_asc" %}selected{% endif %}>Balance ↑</option>
+            <option value="balance_desc" {% if sort == "balance_desc" %}selected{% endif %}>Balance ↓</option>
+            <option value="invoiced_asc" {% if sort == "invoiced_asc" %}selected{% endif %}>Invoiced ↑</option>
+            <option value="invoiced_desc" {% if sort == "invoiced_desc" %}selected{% endif %}>Invoiced ↓</option>
+            <option value="paid_asc" {% if sort == "paid_asc" %}selected{% endif %}>Paid ↑</option>
+            <option value="paid_desc" {% if sort == "paid_desc" %}selected{% endif %}>Paid ↓</option>
+        </select>
+        
+    <button type="submit" class="btn btn-primary">Apply</button>
+
+    {% if query or sort %}
         <a href="{% url 'accounting:customer_list' %}" class="btn btn-secondary">Reset</a>
     {% endif %}
 </form>
@@ -18,14 +30,38 @@
     <thead>
         <tr>
             <th>Customer</th>
-            <th>Invoiced (₹)</th>
-            <th>Paid (₹)</th>
-            <th>Balance (₹)</th>
+            <th>
+                <a href="?{% if query %}q={{ query }}&{% endif %}sort=invoiced_asc" class="text-decoration-none">
+                    Invoiced ₹ ↑
+                </a>
+                /
+                <a href="?{% if query %}q={{ query }}&{% endif %}sort=invoiced_desc" class="text-decoration-none">
+                    ↓
+                </a>
+            </th>
+            <th>
+                <a href="?{% if query %}q={{ query }}&{% endif %}sort=paid_asc" class="text-decoration-none">
+                    Paid ₹ ↑
+                </a>
+                /
+                <a href="?{% if query %}q={{ query }}&{% endif %}sort=paid_desc" class="text-decoration-none">
+                    ↓
+                </a>
+            </th>
+            <th>
+                <a href="?{% if query %}q={{ query }}&{% endif %}sort=balance_asc" class="text-decoration-none">
+                    Balance ₹ ↑
+                </a>
+                /
+                <a href="?{% if query %}q={{ query }}&{% endif %}sort=balance_desc" class="text-decoration-none">
+                    ↓
+                </a>
+            </th>
             <th>Ledger</th>
             <th>Actions</th>
-
         </tr>
     </thead>
+    
     <tbody>
         {% for row in customers %}
         <tr>

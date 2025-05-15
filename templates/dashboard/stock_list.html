@@ -1,27 +1,72 @@
 {% extends "dashboard/base.html" %}
-
+{% load dict_extras %}
 {% block title %}Stock{% endblock %}
 
 {% block content %}
-    <h1>Stock List</h1>
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Product</th>
-                <th>Store</th>
-                <th>Quantity</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for stock in stocks %}
-                <tr>
-                    <td>{{ stock.product.name }}</td>
-                    <td>{{ stock.store.name }}</td>
-                    <td>{{ stock.quantity }}</td>
-                </tr>
-            {% empty %}
-                <tr><td colspan="3">No stock records found.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<h1>Stock List</h1>
+
+<form method="get" class="row g-3 mb-3">
+  {% if request.user.role in "managerclerksales" and request.user.store %}
+    <!-- Read-only store display -->
+    <div class="col-md-4">
+      <label>Store</label>
+      <input type="text" readonly class="form-control" value="{{ request.user.store.name }}">
+      <input type="hidden" name="store" value="{{ request.user.store.id }}">
+    </div>
+  {% else %}
+    <!-- Dropdown for admin/superuser -->
+    <div class="col-md-4">
+      <label>Store</label>
+      <select name="store" class="form-select">
+        <option value="">All Stores</option>
+        {% for s in stores %}
+          <option value="{{ s.id }}" {% if s.id|stringformat:"s" == selected_store %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  {% endif %}
+
+  <div class="col-md-4">
+    <label>Product</label>
+    <select name="product" class="form-select">
+      <option value="">All Products</option>
+      {% for p in products %}
+        <option value="{{ p.id }}" {% if p.id|stringformat:"s" == selected_product %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-4 d-flex align-items-end justify-content-end gap-2">
+    <button class="btn btn-primary">Filter</button>
+    <a href="{% url 'inventory:stock_list' %}" class="btn btn-secondary">Reset</a>
+  </div>
+</form>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Product</th>
+      <th>Store</th>
+      <th>Quantity</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for stock in stocks %}
+      <tr>
+        <td>{{ stock.product.name }}</td>
+        <td>{{ stock.store.name }}</td>
+        <td>{{ stock.quantity }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3">No stock records found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if request.user.is_superuser or request.user.role == "admin" %}
+<hr>
+
+<p class="mt-3"><strong>Total Stock (All Products):</strong> {{ overall_total_stock }}</p>
+{% endif %}
+
 {% endblock %}

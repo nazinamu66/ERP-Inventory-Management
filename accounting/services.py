@@ -2,6 +2,7 @@ from .models import Account, Transaction, TransactionLine
 from django.db import transaction as db_transaction
 from django.db.models import Sum
 from django.utils import timezone
+from accounting.models import SupplierLedger
 
 
 
@@ -100,9 +101,6 @@ def record_transaction(source_account_slug, destination_account_slug, amount, st
 
         return txn
 
-from django.utils import timezone
-from .models import Account
-from .services import record_transaction
 
 def record_transaction_by_slug(
     source_slug=None,
@@ -177,22 +175,24 @@ def record_transaction_by_slug(
 
 
 def reverse_transaction(original_transaction_id, reason="Reversal"):
-    """
-    Reverses a transaction by creating an equal and opposite entry.
-    Returns: the new reversed Transaction instance.
-    """
+    from accounting.models import Transaction, TransactionLine, SupplierLedger
+
     try:
         original = Transaction.objects.get(id=original_transaction_id)
 
         with db_transaction.atomic():
+            # Create the reversal transaction
             reversed_txn = Transaction.objects.create(
                 source_account=original.destination_account,
                 destination_account=original.source_account,
                 amount=original.amount,
                 description=f"REVERSAL: {reason}",
-                created_at=timezone.now()
+                created_at=timezone.now(),
+                supplier=original.supplier,
+                store=original.store
             )
 
+            # Create reversal lines
             for line in original.lines.all():
                 TransactionLine.objects.create(
                     transaction=reversed_txn,
@@ -201,7 +201,7 @@ def reverse_transaction(original_transaction_id, reason="Reversal"):
                     credit=line.debit
                 )
 
-            return reversed_txn
-
+            # Handle supplier ledger reversal is in signals.py
+            
     except Transaction.DoesNotExist:
         raise ValueError(f"Original transaction #{original_transaction_id} not found.")

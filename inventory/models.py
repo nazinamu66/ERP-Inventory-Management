@@ -109,6 +109,8 @@ class Stock(models.Model):
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
     quantity = models.IntegerField(default=0)
     cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # ✅ Add this line
+    last_updated = models.DateTimeField(auto_now=True)  # ✅ auto update
+
 
     class Meta:
         unique_together = ('product', 'store')
@@ -212,6 +214,20 @@ class Sale(models.Model):
         else:
             self.payment_status = 'paid'
         self.save(update_fields=['payment_status', 'amount_paid', 'balance_due'])
+    
+    revenue_transaction = models.OneToOneField(
+        'accounting.Transaction',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='revenue_sale'
+    )
+    cogs_transaction = models.OneToOneField(
+        'accounting.Transaction',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='cogs_sale'
+    )
+    ...
 
 
     def __str__(self):
@@ -234,6 +250,11 @@ class SaleItem(models.Model):
     @property
     def subtotal(self):
         return self.quantity * self.unit_price
+    
+    @property
+    def profit(self):
+        return (self.unit_price - self.cost_price) * self.quantity
+
 
     @property
     def total_cost(self):
@@ -242,15 +263,25 @@ class SaleItem(models.Model):
     def __str__(self):
         return f"{self.product.name} x{self.quantity}"
 
+# models.py
+
 class StockTransfer(models.Model):
+    STATUS_CHOICES = [
+        ('requested', 'Requested'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('completed', 'Completed'),
+    ]
+
     product = models.ForeignKey(Product, on_delete=models.CASCADE, default=1)
     source_store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='transfers_out')
     destination_store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='transfers_in')
     quantity = models.PositiveIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='requested')
 
     def __str__(self):
-        return f"Transferred {self.quantity} of {self.product.name} from {self.source_store.name} to {self.destination_store.name}"
+        return f"{self.quantity} x {self.product.name} from {self.source_store.name} to {self.destination_store.name}"
 
 
 class PurchaseOrder(models.Model):

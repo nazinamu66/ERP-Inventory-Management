@@ -14,6 +14,7 @@
                             <th>From</th>
                             <th>To</th>
                             <th>Quantity</th>
+                            <th>Status</th>
                             <th>Date</th>
                         </tr>
                     </thead>
@@ -24,10 +25,27 @@
                             <td>{{ transfer.source_store }}</td>
                             <td>{{ transfer.destination_store }}</td>
                             <td>{{ transfer.quantity }}</td>
+                            <td>{{ transfer.get_status_display }}</td> <!-- 👈 Shows "Requested" -->
                             <td>{{ transfer.created_at|date:"Y-m-d H:i" }}</td>
                         </tr>
+                        {% if transfer.status == 'requested' and request.user.role == 'admin' %}
+                        <tr>
+                            <td colspan="6">
+                                <form action="{% url 'inventory:approve_transfer' transfer.id %}" method="post" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button class="btn btn-sm btn-success">Approve</button>
+                                </form>
+                                <form action="{% url 'inventory:reject_transfer' transfer.id %}" method="post" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button class="btn btn-sm btn-danger">Reject</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endif %}
                         {% endfor %}
                     </tbody>
+                    
+
                 </table>
             {% else %}
                 <p>No stock transfers found.</p>

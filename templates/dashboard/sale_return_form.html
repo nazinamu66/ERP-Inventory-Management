@@ -8,7 +8,6 @@
 <form method="POST">
   {% csrf_token %}
   {{ form.non_field_errors }}
-  {{ formset.management_form }}
 
   <div class="mb-3">
     <label for="{{ form.reason.id_for_label }}"><strong>Return Reason:</strong></label>
@@ -17,6 +16,8 @@
       <div class="text-danger">{{ form.reason.errors }}</div>
     {% endif %}
   </div>
+
+  {{ formset.management_form }} {# ✅ VERY IMPORTANT! Ensures formset works #}
 
   <hr>
   <h5>Return Items</h5>
@@ -31,19 +32,19 @@
     </thead>
     <tbody>
       {% for form in formset.forms %}
-  {% with item=sale_items_dict|dict_get:form.sale_item.value %}
-    <tr>
-      <td>{{ item.product.name }}</td>
-      <td>{{ item.quantity }}</td>
-      <td>{{ item.total_returned }}</td>
-      <td>{{ form.quantity_returned }}</td>
-      {{ form.sale_item }} {# hidden input #}
-    </tr>
-  {% endwith %}
-{% endfor %}
-tbody>
+        {% with item=sale_items_dict|dict_get:form.sale_item.value %}
+          <tr>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.total_returned }}</td>
+            <td>{{ form.quantity_returned }}</td>
+            {{ form.sale_item }} {# hidden input required #}
+          </tr>
+        {% endwith %}
+      {% endfor %}
+    </tbody>
   </table>
-  
+
   <button type="submit" class="btn btn-danger">Process Return</button>
   <a href="{% url 'inventory:sale_detail' pk=sale.id %}" class="btn btn-secondary">Cancel</a>
 </form>

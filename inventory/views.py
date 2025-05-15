@@ -7,8 +7,6 @@ from inventory.forms import StockTransferForm
 from .forms import StockAdjustmentForm, ProductForm
 from .models import Product, Store, StockAdjustment
 from django.core.paginator import Paginator
-from .forms import PurchaseForm
-from .models import Purchase
 from .forms import SaleForm, SaleItemFormSet
 from django.db.models import Q
 from users.models import User
@@ -43,7 +41,8 @@ from .forms import InvoiceForm
 from .models import AuditLog
 from users.models import User 
 from django.http import HttpResponseRedirect
-
+import os
+from django.contrib.staticfiles import finders
 
 
 @login_required
@@ -125,8 +124,6 @@ def inventory_report_view(request):
     store = getattr(request.user, 'store', None)
 
     stocks = Stock.objects.select_related('product', 'store')
-
-    # Restrict staff to their own store
     if role == 'staff' and store:
         stocks = stocks.filter(store=store)
 
@@ -136,9 +133,12 @@ def inventory_report_view(request):
 
     if product_id:
         stocks = stocks.filter(product_id=product_id)
-
     if store_id and role != 'staff':
         stocks = stocks.filter(store_id=store_id)
+
+    # Grand totals
+    total_quantity = sum(s.quantity for s in stocks)
+    total_value = sum(s.quantity * (s.cost_price or 0) for s in stocks)
 
     products = Product.objects.all()
     stores = Store.objects.all()
@@ -148,7 +148,9 @@ def inventory_report_view(request):
         'products': products,
         'stores': stores,
         'selected_product': product_id,
-        'selected_store': store_id
+        'selected_store': store_id,
+        'total_quantity': total_quantity,
+        'total_value': total_value,
     })
 
 
@@ -178,8 +180,23 @@ def export_inventory_csv(request):
     return response
 
 
+def link_callback(uri, rel):
+    if uri.startswith(settings.MEDIA_URL):
+        path = os.path.join(settings.MEDIA_ROOT, uri.replace(settings.MEDIA_URL, ""))
+    elif uri.startswith(settings.STATIC_URL):
+        path = finders.find(uri.replace(settings.STATIC_URL, ""))
+    else:
+        return uri
+    if not os.path.isfile(path):
+        raise Exception('Media URI must start with STATIC_URL or MEDIA_URL')
+    return path
+
+
 @login_required
 def export_inventory_pdf(request):
+    from .models import CompanyProfile
+    from django.utils.timezone import now
+
     role = getattr(request.user, 'role', '').lower()
     store = getattr(request.user, 'store', None)
 
@@ -187,26 +204,33 @@ def export_inventory_pdf(request):
     if role == 'staff' and store:
         stocks = stocks.filter(store=store)
 
-    # Clean filter inputs
+    # Filters
     product_id = request.GET.get('product')
     store_id = request.GET.get('store')
 
     if product_id and product_id.isdigit():
         stocks = stocks.filter(product_id=int(product_id))
-
     if store_id and store_id.isdigit() and role != 'staff':
         stocks = stocks.filter(store_id=int(store_id))
+
+    # Totals
+    total_quantity = sum(s.quantity for s in stocks)
+    total_value = sum(s.quantity * (s.cost_price or 0) for s in stocks)
 
     context = {
         'stocks': stocks,
         'user': request.user,
+        'now': now(),
+        'company': CompanyProfile.objects.first(),
+        'total_quantity': total_quantity,
+        'total_value': total_value,
     }
 
     template = get_template('pdf/inventory_report_pdf.html')
     html = template.render(context)
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="inventory_report.pdf"'
-    pisa.CreatePDF(html, dest=response)
+    pisa.CreatePDF(html, dest=response, link_callback=link_callback)
     return response
 
 
@@ -343,6 +367,59 @@ def receive_purchase_order(request, po_id):
     stores = Store.objects.all() if request.user.is_superuser or request.user.role == 'admin' else None
     return render(request, 'dashboard/receive_purchase_order.html', {'po': po, 'stores': stores})
 
+@require_POST
+@login_required
+def purchase_received_delete_view(request, po_id):
+    po = get_object_or_404(PurchaseOrder, pk=po_id)
+
+    if not request.user.is_superuser and request.user.role != 'manager':
+        return HttpResponseForbidden("Only managers or admins can delete received purchases.")
+
+    if po.status != 'received':
+        messages.error(request, "Only received POs can be deleted from this action.")
+        return redirect('inventory:purchase_order_detail', po_id=po.id)
+
+    try:
+        with transaction.atomic():
+            # Reverse stock increments
+            for item in po.items.select_related('product'):
+                product = item.product
+                quantity = item.quantity
+
+                # Revert product total quantity
+                product.total_quantity -= quantity
+                product.save(update_fields=["total_quantity"])
+
+                # Revert stock per store
+                stock = Stock.objects.filter(product=product, store__in=[request.user.store, po.created_by.store]).first()
+                if stock:
+                    stock.quantity -= quantity
+                    stock.save(update_fields=["quantity"])
+
+            # Reverse the accounting transaction
+            from accounting.models import Transaction
+            related_txn = Transaction.objects.filter(description__icontains=f"PO-{po.id} Goods Received").first()
+
+            if related_txn:
+                from accounting.services import reverse_transaction
+                reverse_transaction(related_txn.id, reason=f"Deleted Received PO-{po.id}")
+
+            po.delete()
+
+            AuditLog.objects.create(
+                user=request.user,
+                action='adjustment',
+                description=f"{request.user.username} deleted received PO-{po.id} and reversed accounting/stock."
+            )
+
+            messages.success(request, f"Received Purchase Order PO-{po.id} deleted successfully and reversed.")
+            return redirect('inventory:purchase_order_list')
+
+    except Exception as e:
+        logger.error(f"❌ Error deleting received PO-{po.id}: {e}")
+        messages.error(request, f"An error occurred: {e}")
+        return redirect('inventory:purchase_order_detail', po_id=po.id)
+
 
 @login_required
 def purchase_order_list(request):
@@ -399,21 +476,29 @@ def delete_sale(request, sale_id):
     sale = get_object_or_404(Sale, pk=sale_id)
 
     if request.method == "POST":
-        with transaction.atomic():
-            # ✅ Reverse the accounting entry if transaction exists
-            if sale.transaction:
+        try:
+            with transaction.atomic():
                 from accounting.services import reverse_transaction
-                reverse_transaction(sale.transaction.id, reason=f"Sale Reversal: RCPT-{sale.receipt_number}")
 
-            # ✅ Restore stock
-            for item in sale.items.all():
-                stock, _ = Stock.objects.get_or_create(product=item.product, store=sale.store)
-                stock.quantity += item.quantity
-                stock.save()
+                if sale.revenue_transaction:
+                    reverse_transaction(sale.revenue_transaction.id, reason=f"Sale Reversal: {sale.receipt_number}")
 
-            sale.delete()
-            messages.success(request, "Sale deleted, stock restored, and accounting reversed.")
-            return redirect('inventory:sale_list')
+                if sale.cogs_transaction:
+                    reverse_transaction(sale.cogs_transaction.id, reason=f"COGS Reversal: {sale.receipt_number}")
+
+                for item in sale.items.all():
+                    stock, _ = Stock.objects.get_or_create(product=item.product, store=sale.store)
+                    stock.quantity += item.quantity
+                    stock.save()
+
+                sale.delete()
+
+                messages.success(request, "Sale deleted, stock restored, and accounting fully reversed.")
+                return redirect('inventory:sale_list')
+
+        except Exception as e:
+            logger.error(f"❌ Deletion failed: {e}")
+            messages.error(request, "Something went wrong while deleting the sale.")
 
     return render(request, 'dashboard/confirm_delete.html', {'object': sale, 'type': 'Sale'})
 
@@ -532,42 +617,6 @@ def filter_purchase_orders(request):
 
 
 @login_required
-def purchase_create(request):
-    if not request.user.is_superuser and request.user.role != 'manager':
-        return render(request, 'errors/permission_denied.html', status=403)
-
-    if request.method == 'POST':
-        form = PurchaseForm(request.POST, request=request)
-        if form.is_valid():
-            purchase = form.save(commit=False)
-            purchase.purchased_by = request.user
-            purchase.save()
-
-            # Update stock
-            stock, created = Stock.objects.get_or_create(
-                product=purchase.product,
-                store=purchase.store,
-                defaults={'quantity': 0}
-            )
-            stock.quantity += purchase.quantity
-            stock.save()
-
-            # Audit
-            AuditLog.objects.create(
-                user=request.user,
-                action='adjustment',
-                description=f"{request.user.username} purchased {purchase.quantity} of {purchase.product.name} for {purchase.store.name}"
-            )
-
-            messages.success(request, "Purchase recorded and stock updated.")
-            return redirect('inventory:purchase_create')
-    else:
-        form = PurchaseForm(request=request)
-
-    return render(request, 'dashboard/purchase_form.html', {'form': form})
-
-
-@login_required
 def export_sales_csv(request):
     sales = Sale.objects.select_related('product', 'store', 'sold_by').order_by('-sale_date')
 
@@ -603,14 +652,20 @@ def export_sales_csv(request):
     return response
 
 
+
+@login_required
 def audit_log_list_view(request):
     logs = AuditLog.objects.all().select_related("user")
     users = User.objects.all()
-
-    # Get all distinct actions from all logs (not filtered logs)
     all_actions = AuditLog.objects.order_by('action').values_list('action', flat=True).distinct()
 
-    # Filters
+    user = request.user
+
+    # 🔒 Filter logs by store if manager
+    if user.role == "manager" and user.store:
+        logs = logs.filter(description__icontains=user.store.name)
+
+    # Apply user filters (admins can override and view all)
     user_id = request.GET.get("user")
     if user_id:
         logs = logs.filter(user_id=user_id)
@@ -627,8 +682,20 @@ def audit_log_list_view(request):
             end_date = datetime.strptime(end, "%Y-%m-%d").date()
             logs = logs.filter(timestamp__date__range=[start_date, end_date])
         except ValueError:
-            pass  # silently ignore invalid date formats
+            pass
 
+    # 🔁 Handle export to PDF
+    if request.GET.get("export") == "pdf":
+        html_string = render_to_string("pdf/audit_log_pdf.html", {
+            "logs": logs.order_by("-timestamp"),
+            "request": request,
+        })
+        pdf = HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
+        response = HttpResponse(pdf, content_type="application/pdf")
+        response["Content-Disposition"] = "attachment; filename=audit_logs.pdf"
+        return response
+
+    # 🗂️ Paginate results
     paginator = Paginator(logs.order_by("-timestamp"), 25)
     page_obj = paginator.get_page(request.GET.get("page"))
 
@@ -638,13 +705,20 @@ def audit_log_list_view(request):
         "action_choices": all_actions,
     })
 
+
 @login_required
 def sale_return_view(request, sale_id):
     sale = get_object_or_404(Sale, pk=sale_id)
+    sale_items = sale.items.all()
+    sale_items_dict = {str(item.id): item for item in sale_items}
 
     if request.method == 'POST':
         form = SaleReturnForm(request.POST)
-        formset = SaleReturnItemFormSet(request.POST)
+        formset = SaleReturnItemFormSet(request.POST, prefix="return")
+
+        # 🔁 Restrict queryset of sale_item in POST as well
+        for subform in formset.forms:
+            subform.fields['sale_item'].queryset = sale_items
 
         if form.is_valid() and formset.is_valid():
             with transaction.atomic():
@@ -660,7 +734,6 @@ def sale_return_view(request, sale_id):
                     return_qty = return_item.quantity_returned
 
                     if return_qty > 0:
-                        # Update stock
                         stock = Stock.objects.get(product=sale_item.product, store=sale.store)
                         stock.quantity += return_qty
                         stock.save()
@@ -673,32 +746,39 @@ def sale_return_view(request, sale_id):
                 sale_return.total_refunded = total
                 sale_return.save()
 
+                from accounting.services import record_transaction_by_slug
+                record_transaction_by_slug(
+                    source_slug="sales-revenue",
+                    destination_slug="accounts-receivable",
+                    amount=total,
+                    description=f"Return for {sale.receipt_number}",
+                    store=sale.store
+                )
+
                 messages.success(request, "Return processed successfully.")
                 return redirect('inventory:sale_detail', pk=sale_id)
-
     else:
         form = SaleReturnForm()
+
+        # ✅ Generate initial data for formset from sale items
+        initial_data = [{'sale_item': item.id, 'quantity_returned': 0} for item in sale_items]
+
         formset = SaleReturnItemFormSet(
+            prefix="return",
             queryset=SaleReturnItem.objects.none(),
-            initial=[
-                {'sale_item': item.id, 'quantity_returned': 0}
-                for item in sale.items.all()
-            ],
-            prefix="return"
+            initial=initial_data
         )
 
-        # Restrict the formset's sale_item queryset to sale's items only
+        # ✅ Restrict the sale_item queryset to this sale only
         for subform in formset.forms:
-            subform.fields['sale_item'].queryset = sale.items.all()
-        sale_items_dict = {str(item.id): item for item in sale.items.all()}
-
+            subform.fields['sale_item'].queryset = sale_items
 
     return render(request, 'dashboard/sale_return_form.html', {
-    'form': form,
-    'formset': formset,
-    'sale': sale,
-    'sale_items_dict': sale_items_dict,
-})
+        'form': form,
+        'formset': formset,
+        'sale': sale,
+        'sale_items_dict': sale_items_dict,
+    })
 
 
 @login_required
@@ -751,17 +831,6 @@ def sale_list_view(request):
     return render(request, 'dashboard/sale_list.html', context)
 
 
-@require_POST
-@login_required
-def sale_delete_view(request, pk):
-    if not request.user.is_superuser and request.user.role != 'manager':
-        return HttpResponseForbidden("You are not allowed to delete sales.")
-    
-    sale = get_object_or_404(Sale, pk=pk)
-    sale.delete()
-    messages.success(request, f"Sale {pk} deleted successfully.")
-    return redirect('inventory:sale_list')
-
 @login_required
 def sale_receipt_pdf(request, sale_id):
     sale = get_object_or_404(Sale.objects.prefetch_related('items__product'), pk=sale_id)
@@ -790,58 +859,15 @@ def sale_receipt_pdf(request, sale_id):
 def sale_detail_view(request, pk):
     sale = get_object_or_404(Sale.objects.select_related('customer', 'store', 'sold_by'), pk=pk)
     items = sale.items.select_related('product').all()
+    total_profit = sum(item.profit for item in sale.items.all())
+
 
     return render(request, 'dashboard/sale_detail.html', {
         'sale': sale,
-        'items': items
+        'items': items,
+        'total_profit': total_profit,
+
     })
-
-
-
-@login_required
-def admin_dashboard(request):
-    # 📅 Date calculations
-    today = now().date()
-    start_of_week = today - timedelta(days=today.weekday())
-
-    # 📊 Sales data
-    sales_today = Sale.objects.filter(sale_date__date=today).count()
-    sales_this_week = Sale.objects.filter(sale_date__date__gte=start_of_week).count()
-    total_sales = Sale.objects.count()
-    total_revenue = Sale.objects.aggregate(revenue=Sum('total_amount'))['revenue'] or 0
-
-    # 📦 Inventory data
-    total_products = Product.objects.count()
-    total_stock = Stock.objects.aggregate(total=Sum('quantity'))['total'] or 0
-    low_stock_threshold = 10
-    low_stock_products = (
-        Product.objects
-        .annotate(total_store_stock=Sum('stock__quantity'))
-        .filter(total_store_stock__lt=low_stock_threshold)
-    )
-
-    # 🧾 Recent sales items
-    recent_sales = (
-        SaleItem.objects
-        .select_related('sale', 'product', 'sale__store')
-        .order_by('-sale__sale_date')[:5]
-    )
-
-    # 🧠 Context for the template
-    context = {
-        'total_products': total_products,
-        'total_stock': total_stock,
-        'total_sales': total_sales,
-        'total_revenue': total_revenue,
-        'sales_today': sales_today,
-        'sales_this_week': sales_this_week,
-        'low_stock_products': low_stock_products,
-        'recent_sales': recent_sales,
-    }
-
-    return render(request, 'dashboard/admin.html', context)
-
-
 
 
 logger = logging.getLogger(__name__)
@@ -851,9 +877,6 @@ def audit_log_detail_view(request, pk):
     return render(request, "dashboard/log_detail.html", {"log": log})
 
 
-# inventory/views.py
-
-from accounting.services import record_transaction, reverse_transaction
 
 from accounting.services import record_transaction_by_slug
 
@@ -880,14 +903,15 @@ def sale_receipt_create(request):
                     sale.save(update_fields=["receipt_number"])
 
                 total, cost_total = 0, 0
+                store = sale.store
+
                 for form_item in formset:
                     if form_item.cleaned_data.get("DELETE"):
                         continue
 
-                    product = form_item.cleaned_data.get("product")
-                    quantity = form_item.cleaned_data.get("quantity")
-                    unit_price = form_item.cleaned_data.get("unit_price")
-                    store = sale.store
+                    product = form_item.cleaned_data["product"]
+                    quantity = form_item.cleaned_data["quantity"]
+                    unit_price = form_item.cleaned_data["unit_price"]
 
                     stock_entry = Stock.objects.filter(product=product, store=store).first()
                     if not stock_entry or stock_entry.quantity < quantity:
@@ -899,7 +923,7 @@ def sale_receipt_create(request):
 
                     item = form_item.save(commit=False)
                     item.sale = sale
-                    item.cost_price = stock_entry.cost_price if stock_entry.cost_price is not None else 0
+                    item.cost_price = stock_entry.cost_price or 0
                     item.save()
 
                     total += quantity * unit_price
@@ -911,29 +935,26 @@ def sale_receipt_create(request):
                 bank_account = form.cleaned_data.get('bank_account')
                 description = f"Sale Receipt - {sale.receipt_number}"
 
-                print(f"✅ Recording Revenue Transaction: {total} from Sales Revenue to {'bank account' if bank_account else 'Undeposited Funds'}")
-                txn = record_transaction_by_slug(
+                revenue_txn = record_transaction_by_slug(
                     source_slug='sales-revenue',
                     destination_slug=bank_account.slug if bank_account else 'undeposited-funds',
                     amount=total,
                     description=description,
-                    store=request.user.store  # ← required!
-
+                    store=store
                 )
 
-                print(f"🔍 COGS Amount: {cost_total}")
-                print("👉 Recording COGS transaction now...")
-                record_transaction_by_slug(
+                cogs_txn = record_transaction_by_slug(
                     source_slug='inventory-assets',
                     destination_slug='cost-of-goods-sold',
                     amount=cost_total,
-                    store=request.user.store,  # ← required!
-                    description=f"COGS for {sale.receipt_number}"
+                    description=f"COGS for {sale.receipt_number}",
+                    store=store
                 )
 
-                if txn:
-                    sale.transaction = txn
-                    sale.save(update_fields=["transaction"])
+                sale.revenue_transaction = revenue_txn
+                sale.cogs_transaction = cogs_txn
+                sale.transaction = revenue_txn
+                sale.save(update_fields=["revenue_transaction", "cogs_transaction", "transaction"])
 
                 AuditLog.objects.create(
                     user=request.user,
@@ -979,9 +1000,9 @@ def invoice_create(request):
                     if form_item.cleaned_data.get("DELETE"):
                         continue
 
-                    product = form_item.cleaned_data.get("product")
-                    quantity = form_item.cleaned_data.get("quantity")
-                    unit_price = form_item.cleaned_data.get("unit_price")
+                    product = form_item.cleaned_data["product"]
+                    quantity = form_item.cleaned_data["quantity"]
+                    unit_price = form_item.cleaned_data["unit_price"]
 
                     stock_entry = Stock.objects.filter(product=product, store=store).first()
                     if not stock_entry or stock_entry.quantity < quantity:
@@ -993,7 +1014,7 @@ def invoice_create(request):
 
                     item = form_item.save(commit=False)
                     item.sale = sale
-                    item.cost_price = getattr(stock_entry, 'cost_price', 0) or 0
+                    item.cost_price = stock_entry.cost_price or 0
                     item.save()
 
                     total += quantity * unit_price
@@ -1002,30 +1023,29 @@ def invoice_create(request):
                 sale.total_amount = total
                 sale.save(update_fields=["total_amount"])
 
-                # ✅ ACCOUNTING TRANSACTIONS
                 from accounting.services import record_transaction_by_slug
 
-                # Sales Revenue (credit) → Accounts Receivable (debit)
-                txn = record_transaction_by_slug(
+                # 🧾 Record accounting entries
+                revenue_txn = record_transaction_by_slug(
                     source_slug='sales-revenue',
                     destination_slug='accounts-receivable',
                     amount=total,
-                    store=request.user.store,  # ← required!
+                    store=store,
                     description=f"Invoice - {sale.receipt_number}"
                 )
 
-                # Inventory Asset (credit) → COGS (debit)
-                record_transaction_by_slug(
+                cogs_txn = record_transaction_by_slug(
                     source_slug='inventory-assets',
                     destination_slug='cost-of-goods-sold',
                     amount=cost_total,
                     description=f"COGS for {sale.receipt_number}",
-                    store=request.user.store  # ← required!
-
+                    store=store
                 )
 
-                sale.transaction = txn
-                sale.save(update_fields=["transaction"])
+                sale.revenue_transaction = revenue_txn
+                sale.cogs_transaction = cogs_txn
+                sale.transaction = revenue_txn
+                sale.save(update_fields=["revenue_transaction", "cogs_transaction", "transaction"])
 
                 AuditLog.objects.create(
                     user=request.user,
@@ -1089,57 +1109,6 @@ def manager_dashboard(request):
         'total_sales_today': total_sales_today,
     })
 
-
-from .models import Sale
-
-@login_required
-def store_dashboard(request):
-    user_store = getattr(request.user, 'store', None)
-
-    if not user_store:
-        messages.warning(request, "You are not assigned to a store.")
-        return render(request, 'dashboard/default.html')
-
-    stock = Stock.objects.filter(store=user_store).select_related('product')
-    sales = Sale.objects.filter(store=user_store).order_by('-sale_date')[:10]
-
-    return render(request, 'dashboard/staff.html', {
-        'store': user_store,
-        'stock': stock,
-        'sales': sales,
-    })
-
-
-@login_required
-def inventory_dashboard(request):
-    user_store = getattr(request.user, 'store', None)
-
-    if not user_store:
-        messages.warning(request, "No store assigned to your account.")
-        return render(request, 'dashboard/default.html')
-
-    stocks = Stock.objects.filter(store=user_store).select_related('product')
-
-    return render(request, 'dashboard/inventory.html', {
-        'stocks': stocks,
-        'store': user_store,
-    })
-
-
-from .models import Product, Sale
-from django.utils.timezone import now
-
-@login_required
-def sales_dashboard(request):
-    today = now().date()
-    today_sales = Sale.objects.filter(sale_date__date=today, sold_by=request.user)
-
-    return render(request, 'dashboard/sales.html', {
-        'sales': today_sales,
-    })
-
-
-
 @login_required
 def default_dashboard(request):
     return render(request, 'dashboard/default.html')
@@ -1186,11 +1155,51 @@ def product_delete(request, pk):
     return render(request, 'dashboard/product_confirm_delete.html', {'product': product})
 
 
+from django.db.models import Q
+from inventory.models import Product, Store
+from collections import defaultdict
+
+
+from collections import defaultdict
+
 @login_required
 def stock_list(request):
+    user = request.user
     stocks = Stock.objects.select_related('store', 'product')
-    return render(request, 'dashboard/stock_list.html', {'stocks': stocks})
+    stores = Store.objects.all()
+    products = Product.objects.all()
 
+    # Restrict stocks by role
+    if user.role in ["manager", "clerk", "sales"] and user.store:
+        stocks = stocks.filter(store=user.store)
+        stores = stores.filter(id=user.store.id)
+    else:
+        store_id = request.GET.get("store")
+        if store_id:
+            stocks = stocks.filter(store_id=store_id)
+
+    # Filter by product
+    product_id = request.GET.get("product")
+    if product_id:
+        stocks = stocks.filter(product_id=product_id)
+
+    # ✅ Build totals using product ID (as integer)
+    total_per_product = defaultdict(int)
+    for stock in stocks:
+        total_per_product[int(stock.product.id)] += stock.quantity
+
+    # ✅ Sum for footer (optional)
+    overall_total_stock = sum(total_per_product.values())
+
+    return render(request, 'dashboard/stock_list.html', {
+        'stocks': stocks,
+        'stores': stores,
+        'products': products,
+        'selected_store': request.GET.get("store", ""),
+        'selected_product': request.GET.get("product", ""),
+        'total_per_product': total_per_product,
+        'overall_total_stock': overall_total_stock,
+    })
 
 @login_required
 def stock_transfer_list_view(request):
@@ -1214,58 +1223,93 @@ def stock_transfer_view(request):
     if request.method == 'POST':
         form = StockTransferForm(request.POST, request=request)
         if form.is_valid():
-            product = form.cleaned_data['product']
-            source_store = form.cleaned_data['source_store']
-            destination_store = form.cleaned_data['destination_store']
-            quantity = form.cleaned_data['quantity']
+            transfer = form.save(commit=False)
+            transfer.status = 'requested'  # Always start as request
+            transfer.save()
 
-            source_stock = Stock.objects.filter(product=product, store=source_store).first()
-            destination_stock = Stock.objects.filter(product=product, store=destination_store).first()
-
-            if not source_stock:
-                messages.error(request, 'Product not found in source store.')
-                return render(request, 'dashboard/stock_transfer.html', {'form': form})
-
-            if source_stock.quantity < quantity:
-                messages.error(request, 'Insufficient stock in source store.')
-                return render(request, 'dashboard/stock_transfer.html', {'form': form})
-
-            try:
-                with transaction.atomic():
-                    source_stock.quantity -= quantity
-                    source_stock.save()
-
-                    if destination_stock:
-                        destination_stock.quantity += quantity
-                        destination_stock.save()
-                    else:
-                        Stock.objects.create(
-                        product=product,
-                        store=destination_store,
-                        quantity=quantity
-                    )
-                        
-                    StockTransfer.objects.create(
-                        product=product,
-                        source_store=source_store,
-                        destination_store=destination_store,
-                        quantity=quantity
-                    )
-                    AuditLog.objects.create(
-                        user=request.user,
-                        action='transfer',
-                        description=f"{request.user.username} transferred {quantity} of {product.name} from {source_store.name} to {destination_store.name}"
-                    )
-
-                messages.success(request, 'Stock transferred successfully!')
-                return redirect('inventory:stock_transfer')
-            except Exception as e:
-                messages.error(request, f"Error during transfer: {e}")
-           
+            messages.success(request, 'Stock transfer request submitted and awaiting approval.')
+            return redirect('inventory:stock_transfer_list')
     else:
         form = StockTransferForm(request=request)
 
     return render(request, 'dashboard/stock_transfer.html', {'form': form})
+
+# from django.views.decorators.http import require_POST
+
+@require_POST
+@login_required
+def approve_transfer(request, transfer_id):
+    if not request.user.is_superuser and request.user.role != 'admin':
+        return HttpResponseForbidden("Only admins can approve transfers.")
+
+    transfer = get_object_or_404(StockTransfer, id=transfer_id)
+
+    if transfer.status != 'requested':
+        messages.warning(request, "This transfer has already been processed.")
+        return redirect('inventory:stock_transfer_list')
+
+    try:
+        with transaction.atomic():
+            source_stock = Stock.objects.filter(
+                product=transfer.product,
+                store=transfer.source_store
+            ).first()
+
+            if not source_stock or source_stock.quantity < transfer.quantity:
+                messages.error(request, "Insufficient stock to approve transfer.")
+                return redirect('inventory:stock_transfer_list')
+
+            # Reduce source
+            source_stock.quantity -= transfer.quantity
+            source_stock.save()
+
+            # Increase destination
+            dest_stock, created = Stock.objects.get_or_create(
+                product=transfer.product,
+                store=transfer.destination_store,
+                defaults={'quantity': 0}
+            )
+            dest_stock.quantity += transfer.quantity
+            dest_stock.save()
+
+            transfer.status = 'approved'
+            transfer.save()
+
+            AuditLog.objects.create(
+                user=request.user,
+                action='transfer_approval',
+                description=f"{request.user.username} approved stock transfer #{transfer.id}"
+            )
+
+            messages.success(request, "Transfer approved successfully.")
+    except Exception as e:
+        messages.error(request, f"Error approving transfer: {e}")
+
+    return redirect('inventory:stock_transfer_list')
+
+
+@require_POST
+@login_required
+def reject_transfer(request, transfer_id):
+    if not request.user.is_superuser and request.user.role != 'admin':
+        return HttpResponseForbidden("Only admins can reject transfers.")
+
+    transfer = get_object_or_404(StockTransfer, id=transfer_id)
+
+    if transfer.status != 'requested':
+        messages.warning(request, "This transfer has already been processed.")
+    else:
+        transfer.status = 'rejected'
+        transfer.save()
+
+        AuditLog.objects.create(
+            user=request.user,
+            action='transfer_rejection',
+            description=f"{request.user.username} rejected stock transfer #{transfer.id}"
+        )
+        messages.success(request, "Transfer rejected.")
+
+    return redirect('inventory:stock_transfer_list')
 
 
 @login_required
@@ -1367,6 +1411,28 @@ def create_purchase_order(request):
         'po_form': po_form,
         'item_formset': item_formset,
     })
+
+
+@require_POST
+@login_required
+def purchase_order_delete_view(request, pk):
+    if not request.user.is_superuser and request.user.role != 'manager':
+        return HttpResponseForbidden("Only managers or admins can delete purchase orders.")
+
+    po = get_object_or_404(PurchaseOrder, pk=pk)
+
+    if po.status == 'received':
+        messages.error(request, "Cannot delete a received purchase order.")
+        return redirect('inventory:purchase_order_list')
+
+    try:
+        with transaction.atomic():
+            po.delete()
+            messages.success(request, f"Purchase Order PO-{pk} deleted successfully.")
+    except Exception as e:
+        messages.error(request, f"Error deleting purchase order: {e}")
+
+    return redirect('inventory:purchase_order_list')
 
 @login_required
 def stock_adjustment_list(request):

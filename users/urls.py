@@ -11,4 +11,5 @@ urlpatterns = [
     path('users/<int:pk>/delete/', views.user_delete, name='user_delete'),
     path('login/', CustomLoginView.as_view(), name='login'),
     
+    
 ]

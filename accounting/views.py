@@ -30,9 +30,6 @@ from django.views.decorators.http import require_POST
 from inventory.forms import CustomerForm
 
 
-
-
-
 @login_required
 def record_account_deposit(request):
     if request.method == 'POST':
@@ -289,11 +286,15 @@ def build_customer_ledger(customer, from_date_str=None, to_date_str=None):
 
 from django.db.models import Q
 
+from operator import itemgetter  # for sorting lists of dicts
+
+
 @login_required
 def customer_list_with_balances(request):
-    query = request.GET.get('q', '')
-    customers = Customer.objects.all()
+    query = request.GET.get('q', '').strip()
+    sort = request.GET.get('sort', '')
 
+    customers = Customer.objects.all()
     if query:
         customers = customers.filter(
             Q(name__icontains=query) |
@@ -319,9 +320,24 @@ def customer_list_with_balances(request):
             'balance': balance
         })
 
+    # ✅ Sorting logic
+    sort_map = {
+        'balance_asc': ('balance', False),
+        'balance_desc': ('balance', True),
+        'invoiced_asc': ('invoiced', False),
+        'invoiced_desc': ('invoiced', True),
+        'paid_asc': ('paid', False),
+        'paid_desc': ('paid', True),
+    }
+
+    if sort in sort_map:
+        key, reverse = sort_map[sort]
+        customer_data = sorted(customer_data, key=itemgetter(key), reverse=reverse)
+
     return render(request, 'accounting/customer_list.html', {
         'customers': customer_data,
         'query': query,
+        'sort': sort,
     })
 
 
@@ -456,13 +472,17 @@ def receive_customer_payment(request):
             payment = form.save(commit=False)
             description = f"Payment from {payment.customer.name}"
 
+            destination_slug = (
+                payment.bank_account.slug if payment.payment_method == 'bank_transfer'
+                else 'undeposited-funds'
+            )
+
             txn = record_transaction_by_slug(
                 source_slug='accounts-receivable',
-                destination_slug=payment.bank_account.slug if payment.payment_method == 'bank_transfer' else 'undeposited-funds',
+                destination_slug=destination_slug,
                 amount=payment.amount,
                 description=description,
-                store=request.user.store  # ← required!
-
+                store=request.user.store
             )
 
             payment.transaction = txn
@@ -471,7 +491,11 @@ def receive_customer_payment(request):
             if payment.invoice:
                 sale = payment.invoice
                 sale.amount_paid += payment.amount
+                sale.save(update_fields=["amount_paid", "balance_due"])  # optionally update here
                 sale.update_payment_status()
+            else:
+                # No invoice selected — optionally link manually or ignore
+                pass
 
             messages.success(request, f"Received payment from {payment.customer.name}")
             return redirect('accounting:receive_customer_payment')
@@ -488,9 +512,10 @@ def get_unpaid_invoices(request):
     if customer_id:
         invoices = Sale.objects.filter(
             customer_id=customer_id,
-            sale_type='invoice',
-            payment_status='unpaid'
-        ).values('id', 'invoice_number', 'total_amount', 'amount_paid')
+            sale_type='invoice'
+        ).filter(total_amount__gt=F('amount_paid')).values(
+            'id', 'receipt_number', 'total_amount', 'amount_paid'
+        )
 
     return JsonResponse(list(invoices), safe=False)
 

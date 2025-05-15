@@ -2,6 +2,13 @@ from django import forms
 from django.forms import inlineformset_factory
 from .models import SaleReturn, SaleReturnItem
 from accounting.models import Account
+from django.forms import BaseInlineFormSet
+from django.core.exceptions import ValidationError
+from inventory.models import (
+    StockTransfer, Store, Product, StockAdjustment,
+    Purchase, PurchaseOrder, PurchaseOrderItem, Supplier,
+    Sale, SaleItem, Customer
+)
 
 
 class SaleReturnForm(forms.ModelForm):
@@ -10,20 +17,37 @@ class SaleReturnForm(forms.ModelForm):
         fields = ['reason']
 
 
+
+
+
+class BaseSaleReturnItemFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        for form in self.forms:
+            if form.cleaned_data:
+                sale_item = form.cleaned_data.get('sale_item')
+                return_qty = form.cleaned_data.get('quantity_returned', 0)
+
+                if return_qty < 0:
+                    raise ValidationError("Return quantity cannot be negative.")
+
+                already_returned = sale_item.total_returned()
+                max_returnable = sale_item.quantity - already_returned
+
+                if return_qty > max_returnable:
+                    raise ValidationError(
+                        f"Cannot return more than available. {sale_item.product.name}: Max {max_returnable}"
+                    )
+
 SaleReturnItemFormSet = inlineformset_factory(
     SaleReturn,
     SaleReturnItem,
     fields=['sale_item', 'quantity_returned'],
     extra=0,
-    can_delete=False
+    can_delete=False,
+    formset=BaseSaleReturnItemFormSet
 )
 
-
-from inventory.models import (
-    StockTransfer, Store, Product, StockAdjustment,
-    Purchase, PurchaseOrder, PurchaseOrderItem, Supplier,
-    Sale, SaleItem, Customer
-)
 
 class CustomerForm(forms.ModelForm):
     class Meta:

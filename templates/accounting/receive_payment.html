@@ -20,27 +20,28 @@
 
     <button type="submit" class="btn btn-success">Record Payment</button>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const customerField = document.getElementById('id_customer');
-            const invoiceField = document.getElementById('id_invoice');
-        
-            if (customerField && invoiceField) {
-                customerField.addEventListener('change', function () {
-                    const customerId = this.value;
-                    fetch(`/accounting/api/unpaid-invoices/?customer_id=${customerId}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            invoiceField.innerHTML = '<option value="">---------</option>';
-                            data.forEach(inv => {
-                                const option = document.createElement('option');
-                                option.value = inv.id;
-                                option.text = `${inv.receipt_number} - ₹${inv.total_amount}`;
-                                invoiceField.appendChild(option);
-                            });
+    document.addEventListener('DOMContentLoaded', function () {
+        const customerField = document.getElementById('id_customer');
+        const invoiceField = document.getElementById('id_invoice');
+
+        if (customerField && invoiceField) {
+            customerField.addEventListener('change', function () {
+                const customerId = this.value;
+                fetch(`/accounting/api/unpaid-invoices/?customer_id=${customerId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        invoiceField.innerHTML = '<option value="">---------</option>';
+                        data.forEach(inv => {
+                            const option = document.createElement('option');
+                            option.value = inv.id;
+                            option.text = `${inv.invoice_number || 'INV-' + inv.id} - ₹${inv.total_amount}`;
+                            invoiceField.appendChild(option);
                         });
-                });
-            }
-        });
-        </script>        
+                    });
+            });
+        }
+    });
+</script>
+        
 </form>
 {% endblock %}

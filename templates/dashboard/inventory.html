@@ -1,13 +1,47 @@
 {% extends 'dashboard/base.html' %}
-{% block title %}Clerk Dashboard{% endblock %}
+{% block title %}Inventory Clerk Dashboard{% endblock %}
 {% block content %}
 
 <h3>Welcome, {{ request.user.username }}</h3>
 <p class="text-muted">Store: {{ store.name }}</p>
 
-<hr>
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h6 class="card-title">Total Products</h6>
+                <p class="fs-4">{{ total_products }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h6 class="card-title">Total Quantity in Stock</h6>
+                <p class="fs-4">{{ total_quantity }}</p>
+            </div>
+        </div>
+    </div>
+</div>
 
-<h5>Current Stock</h5>
+{% if low_stock_items %}
+<h5 class="text-danger">Low Stock Items</h5>
+<table class="table table-bordered">
+    <thead>
+        <tr><th>Product</th><th>Quantity</th></tr>
+    </thead>
+    <tbody>
+        {% for item in low_stock_items %}
+        <tr>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.quantity }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h5 class="mt-4">All Stock</h5>
 <table class="table table-striped">
     <thead>
         <tr>
@@ -28,9 +62,5 @@
         {% endfor %}
     </tbody>
 </table>
-
-{% if request.user.can_adjust_stock %}
-    <a href="{% url 'inventory:stock_adjustment_create' %}" class="btn btn-outline-warning">Adjust Stock</a>
-{% endif %}
 
 {% endblock %}

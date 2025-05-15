@@ -2,7 +2,13 @@ from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 from . import views
-from .views import invoice_create
+from .views import (
+    stock_transfer_list_view,
+    stock_transfer_view,
+    approve_transfer,
+    reject_transfer,
+)
+
 
 
 app_name = 'inventory'
@@ -10,9 +16,9 @@ app_name = 'inventory'
 urlpatterns = [
     # Dashboard Redirects
     path('dashboard/', views.redirect_dashboard, name='dashboard'),
-    path('dashboard/sales/', views.sales_dashboard, name='sales_dashboard'),
+    # path('dashboard/sales/', views.sales_dashboard, name='sales_dashboard'),
     path('dashboard/manager/', views.manager_dashboard, name='manager_dashboard'),
-    path('dashboard/store/', views.store_dashboard, name='store_dashboard'),
+    # path('dashboard/store/', views.store_dashboard, name='store_dashboard'),
 
     # Products & Stock
     path('products/', views.product_list, name='product_list'),
@@ -20,8 +26,6 @@ urlpatterns = [
     path('products/<int:pk>/edit/', views.product_edit, name='product_edit'),
     path('products/<int:pk>/delete/', views.product_delete, name='product_delete'),
     path('stocks/', views.stock_list, name='stock_list'),
-    path('stock-transfer/', views.stock_transfer_view, name='stock_transfer'),
-    path('stock-transfers/', views.stock_transfer_list_view, name='stock_transfer_list'),
     path('stock-adjustment/', views.stock_adjustment_create, name='stock_adjustment_create'),
     path('stock-adjustments/', views.stock_adjustment_list, name='stock_adjustment_list'),
     path('api/get-stock/', views.get_stock_quantity, name='get_stock_quantity'),
@@ -33,8 +37,13 @@ urlpatterns = [
     # Purchase Orders
     path('purchases/new/', views.create_purchase_order, name='create_purchase_order'),
     path('purchases/', views.purchase_order_list, name='purchase_order_list'),
-    path('purchases/add/', views.purchase_create, name='purchase_create'),
     path('purchases/<int:po_id>/', views.purchase_order_detail, name='purchase_order_detail'),
+    # path('purchases/<int:pk>/delete/', views.purchase_delete_view, name='purchase_delete'),
+    path('purchases/<int:pk>/delete/', views.purchase_order_delete_view, name='purchase_delete'),
+    path('purchases/<int:po_id>/received/delete/', views.purchase_received_delete_view, name='purchase_received_delete'),
+
+
+
     path('purchases/receive/<int:po_id>/', views.receive_purchase_order, name='receive_purchase_order'),
 
     # Purchase Order Exports
@@ -68,6 +77,15 @@ urlpatterns = [
     path('dashboard/inventory/report/', views.inventory_report_view, name='inventory_report'),
     path('dashboard/inventory/export/csv/', views.export_inventory_csv, name='export_inventory_csv'),
     path('dashboard/inventory/export/pdf/', views.export_inventory_pdf, name='export_inventory_pdf'),
+
+
+    # inventory/urls.py
+
+    path('transfers/', stock_transfer_list_view, name='stock_transfer_list'),
+    path('transfers/new/', stock_transfer_view, name='stock_transfer'),
+    path('transfers/<int:transfer_id>/approve/', approve_transfer, name='approve_transfer'),
+    path('transfers/<int:transfer_id>/reject/', reject_transfer, name='reject_transfer'),
+
     
 ]
 

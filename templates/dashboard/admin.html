@@ -1,58 +1,105 @@
 {% extends 'dashboard/base.html' %}
+{% load static %}
 {% block title %}Admin Dashboard{% endblock %}
 {% block content %}
 
 <h3>Welcome, {{ request.user.username }}</h3>
 
 <div class="row mb-4">
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card text-white bg-primary">
             <div class="card-body">
-                <h5 class="card-title">Total Products</h5>
-                <p class="card-text fs-4">{{ total_products }}</p>
+                <h6>Total Products</h6>
+                <p class="fs-5">{{ total_products }}</p>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card text-white bg-success">
             <div class="card-body">
-                <h5 class="card-title">Total Stock</h5>
-                <p class="card-text fs-4">{{ total_stock }}</p>
+                <h6>Total Stock</h6>
+                <p class="fs-5">{{ total_stock }}</p>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card text-white bg-warning">
             <div class="card-body">
-                <h5 class="card-title">Sales Today</h5>
-                <p class="card-text fs-4">{{ sales_today }}</p>
+                <h6>Sales Today</h6>
+                <p class="fs-5">{{ sales_today }}</p>
             </div>
         </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
         <div class="card text-white bg-dark">
             <div class="card-body">
-                <h5 class="card-title">Sales This Week</h5>
-                <p class="card-text fs-4">{{ sales_this_week }}</p>
+                <h6>Sales This Week</h6>
+                <p class="fs-5">{{ sales_this_week }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-white bg-secondary">
+            <div class="card-body">
+                <h6>Total Revenue</h6>
+                <p class="fs-5">₹{{ total_revenue|floatformat:2 }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5>📈 Sales Over Time</h5>
+                <canvas id="sales-over-time" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5>🏆 Top Selling Products</h5>
+                <canvas id="top-products-chart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-6 mb-5">
+    <div class="card-body">
+        <h5 class="card-title">Profit Over Time</h5>
+        <canvas id="profit-over-time" height="100"></canvas>
+    </div>
+</div>
+<!-- New Chart: Sales by Store -->
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card-body">
+            <h5>🏬 Sales by Store</h5>
+            <canvas id="sales-by-store-chart" height="120"></canvas>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5>💰 Revenue Over Time</h5>
+                <canvas id="revenue-over-time" height="100"></canvas>
             </div>
         </div>
     </div>
 </div>
 
 {% if low_stock_products %}
-<h4 class="text-danger">Low Stock Products</h4>
+<h5 class="text-danger">Low Stock Products</h5>
 <table class="table table-bordered">
-    <thead>
-        <tr>
-            <th>Product</th>
-            <th>Total Qty</th>
-        </tr>
-    </thead>
+    <thead><tr><th>Product</th><th>Total Qty</th></tr></thead>
     <tbody>
         {% for product in low_stock_products %}
         <tr>
             <td>{{ product.name }}</td>
-            <td>{{ product.total_quantity }}</td>
+            <td>{{ product.total_store_quantity }}</td>
         </tr>
         {% endfor %}
     </tbody>
@@ -60,5 +107,125 @@
 {% else %}
 <p class="text-success">✅ All products have sufficient stock.</p>
 {% endif %}
+
+<h5 class="mt-4">Recent Sales</h5>
+<table class="table table-striped">
+    <thead><tr><th>Product</th><th>Qty</th><th>Store</th><th>Date</th></tr></thead>
+    <tbody>
+        {% for s in recent_sales %}
+        <tr>
+            <td>{{ s.product.name }}</td>
+            <td>{{ s.quantity }}</td>
+            <td>{{ s.sale.store.name }}</td>
+            <td>{{ s.sale.sale_date|date:"Y-m-d H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4">No recent sales found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Chart Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Sales Over Time
+    new Chart(document.getElementById("sales-over-time").getContext("2d"), {
+        type: "line",
+        data: {
+            labels: {{ chart_labels|safe }},
+            datasets: [{
+                label: "Sales (₹)",
+                data: {{ chart_values|safe }},
+                borderColor: "rgb(75, 192, 192)",
+                backgroundColor: "rgba(75, 192, 192, 0.2)",
+                tension: 0.3,
+                fill: true
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { display: true } }, scales: { y: { beginAtZero: true } } }
+    });
+
+    // Top Selling Products
+    new Chart(document.getElementById("top-products-chart").getContext("2d"), {
+        type: "bar",
+        data: {
+            labels: {{ product_labels|safe }},
+            datasets: [{
+                label: "Qty Sold",
+                data: {{ product_values|safe }},
+                backgroundColor: "rgba(54, 162, 235, 0.5)",
+                borderColor: "rgb(54, 162, 235)",
+                borderWidth: 1
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+
+    // Sales by Store
+    new Chart(document.getElementById("sales-by-store-chart").getContext("2d"), {
+        type: "bar",
+        data: {
+            labels: {{ store_labels|safe }},
+            datasets: [{
+                label: "Sales (₹)",
+                data: {{ store_values|safe }},
+                backgroundColor: "rgba(255, 159, 64, 0.5)",
+                borderColor: "rgb(255, 159, 64)",
+                borderWidth: 1
+            }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+
+    <!-- Revenue Over Time -->
+new Chart(document.getElementById("revenue-over-time").getContext("2d"), {
+    type: "bar",
+    data: {
+        labels: {{ revenue_labels|safe }},
+        datasets: [{
+            label: "Revenue (₹)",
+            data: {{ revenue_values|safe }},
+            backgroundColor: "rgba(153, 102, 255, 0.5)",
+            borderColor: "rgb(153, 102, 255)",
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: true } },
+        scales: { y: { beginAtZero: true } }
+    }
+});
+
+const profitLabels = {{ profit_labels|safe }};
+    const profitValues = {{ profit_values|safe }};
+
+    const profitCtx = document.getElementById("profit-over-time").getContext("2d");
+
+    new Chart(profitCtx, {
+        type: "line",
+        data: {
+            labels: profitLabels,
+            datasets: [{
+                label: "Profit (₹)",
+                data: profitValues,
+                borderColor: "rgb(255, 99, 132)",
+                backgroundColor: "rgba(255, 99, 132, 0.2)",
+                tension: 0.1,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: true }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+
+</script>
 
 {% endblock %}

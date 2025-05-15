@@ -67,6 +67,8 @@ class SupplierPaymentForm(forms.Form):
 
 
 
+from django.db.models import F
+
 class CustomerPaymentForm(forms.ModelForm):
     invoice = forms.ModelChoiceField(
         queryset=Sale.objects.none(), required=False, label="Invoice",
@@ -82,20 +84,28 @@ class CustomerPaymentForm(forms.ModelForm):
 
         self.fields['bank_account'].queryset = Account.objects.filter(type='asset')
 
-        # Dynamically set available invoices if customer is already selected
         if 'customer' in self.data:
             try:
                 customer_id = int(self.data.get('customer'))
                 self.fields['invoice'].queryset = Sale.objects.filter(
                     customer_id=customer_id,
-                    sale_type='invoice',
-                    payment_status='unpaid'
-                )
+                    sale_type='invoice'
+                ).filter(total_amount__gt=F('amount_paid'))
             except (ValueError, TypeError):
-                pass  # invalid input from the form
+                pass
         elif self.instance.pk and self.instance.customer:
             self.fields['invoice'].queryset = Sale.objects.filter(
                 customer=self.instance.customer,
-                sale_type='invoice',
-                payment_status='unpaid'
-            )
+                sale_type='invoice'
+            ).filter(total_amount__gt=F('amount_paid'))
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        invoice = cleaned_data.get("invoice")
+        amount = cleaned_data.get("amount")
+
+        if invoice and amount:
+            balance = invoice.total_amount - invoice.amount_paid
+            if amount > balance:
+                self.add_error('amount', f"Payment exceeds balance. Remaining: ₹{balance:.2f}")
+

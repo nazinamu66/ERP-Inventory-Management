@@ -1,28 +1,72 @@
 {% extends 'dashboard/base.html' %}
+{% block title %}Store Dashboard{% endblock %}
 {% block content %}
-<div class="container mt-4">
-    <h2>Stock Overview for {{ store.name }}</h2>
-    <table class="table table-striped mt-3">
-        <thead>
-            <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>Quantity</th>
-                <th>Last Updated</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for stock in stock_items %}
-            <tr>
-                <td>{{ stock.product.name }}</td>
-                <td>{{ stock.product.sku }}</td>
-                <td>{{ stock.quantity }}</td>
-                <td>{{ stock.last_updated|date:"Y-m-d H:i" }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="4">No stock data available.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+
+<h3>Welcome, {{ request.user.username }}</h3>
+<p class="text-muted">Store: <strong>{{ store.name }}</strong></p>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <h6 class="mb-0">Current Stock</h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover table-striped table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Quantity</th>
+                            <th>Last Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stock in stock_items %}
+                        <tr>
+                            <td>{{ stock.product.name }}</td>
+                            <td>{{ stock.quantity }}</td>
+                            <td>{{ stock.last_updated|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center">No stock available for this store.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0">Recent Sales</h6>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm table-striped table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Qty</th>
+                            <th>Sold By</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sale in recent_sales %}
+                        <tr>
+                            <td>{{ sale.product.name }}</td>
+                            <td>{{ sale.quantity }}</td>
+                            <td>{{ sale.sold_by.username }}</td>
+                            <td>{{ sale.sale_date|date:"Y-m-d H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center">No recent sales found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
+
 {% endblock %}

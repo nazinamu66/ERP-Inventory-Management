@@ -1,0 +1,63 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Sales Dashboard{% endblock %}
+{% block content %}
+
+<h3>Welcome, {{ request.user.username }}</h3>
+<p class="text-muted">Date: {{ today_sales.0.sale_date|date:"Y-m-d" }}</p>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h6 class="card-title">Sales Count</h6>
+                <p class="fs-4">{{ total_sales_count }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h6 class="card-title">Items Sold</h6>
+                <p class="fs-4">{{ total_items_sold }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h6 class="card-title">Revenue</h6>
+                <p class="fs-4">₹{{ total_sales_value|floatformat:2 }}</p>
+                <p><strong>Total Profit Today:</strong> ₹{{ total_profit|floatformat:2 }}</p>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<h5>Recent Items Sold</h5>
+{% if recent_items %}
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Product</th>
+            <th>Quantity</th>
+            <th>Store</th>
+            <th>Time</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in recent_items %}
+        <tr>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>{{ item.sale.store.name }}</td>
+            <td>{{ item.sale.sale_date|date:"H:i" }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="text-muted">No recent sales.</p>
+{% endif %}
+
+{% endblock %}

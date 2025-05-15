@@ -61,6 +61,13 @@
             <td>{{ po.date }}</td>
             <td>
                 <!-- For future: Receive PO, Export PDF, etc -->
+                {% if po.status != 'received' %}
+              <form action="{% url 'inventory:purchase_delete' po.id %}" method="post" onsubmit="return confirm('Are you sure?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger btn-sm">🗑️ Delete</button>
+              </form>
+              {% endif %}
+
                 <a href="{% url 'inventory:purchase_order_detail' po.id %}" class="btn btn-sm btn-outline-primary">View</a>
                 {% if po.status == 'pending' %}
     <a href="{% url 'inventory:receive_purchase_order' po.id %}" class="btn btn-sm btn-success">Mark as Received</a>

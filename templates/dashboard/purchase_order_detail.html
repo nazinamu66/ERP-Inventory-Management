@@ -54,6 +54,14 @@
 <a href="{% url 'inventory:export_po_receipt_pdf' po.id %}" class="btn btn-outline-secondary">Download Receipt PDF</a>
 {% endif %}
 
+{% if po.status == 'received' %}
+<form action="{% url 'inventory:purchase_received_delete' po.id %}" method="post" class="mt-2" onsubmit="return confirm('Are you sure you want to reverse and delete this received PO?');">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-danger">🗑️ Delete Received PO</button>
+</form>
+{% endif %}
+
+
 <a href="{% url 'inventory:purchase_order_list' %}" class="btn btn-secondary">Back</a>
 
 {% endblock %}
