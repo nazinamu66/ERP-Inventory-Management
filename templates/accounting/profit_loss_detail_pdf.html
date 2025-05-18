@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Profit & Loss Detail Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11.5px;
+            margin: 25px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .logo {
+            max-height: 60px;
+            margin-bottom: 5px;
+        }
+        .company-info p {
+            margin: 0;
+            line-height: 1.4;
+        }
+        hr {
+            margin: 10px 0 20px;
+            border-top: 1px solid #888;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        th, td {
+            padding: 5px 8px;
+            border: 1px solid #333;
+            text-align: right;
+            vertical-align: top;
+        }
+        th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        th.left, td.left {
+            text-align: left;
+        }
+        .summary {
+            font-weight: bold;
+            background-color: #eee;
+        }
+        .footer {
+            margin-top: 30px;
+            font-size: 10px;
+            text-align: center;
+            color: #444;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    {% if company and company.logo %}
+        <img src="{{ company.logo.url }}" class="logo"><br>
+    {% endif %}
+    {% if company %}
+        <div class="company-info">
+            <h2>{{ company.name }}</h2>
+            <p>{{ company.address }}</p>
+            <p>{{ company.contact_email }} | {{ company.contact_phone }}</p>
+            <p>{{ company.website }}</p>
+        </div>
+    {% endif %}
+</div>
+
+<hr>
+
+<h3 style="text-align: center;">📊 Profit & Loss Detail Report</h3>
+<p style="text-align: center;">Period: {{ start_date }} to {{ end_date }}</p>
+
+<h4>Sales Details</h4>
+<table>
+    <thead>
+        <tr>
+            <th class="left">Product</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Cost Price</th>
+            <th>Sales (N)</th>
+            <th>Cost (N)</th>
+            <th>Profit (N)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr>
+            <td class="left">{{ item.product_name }}</td>
+<td>{{ item.quantity }}</td>
+<td>₹{{ item.unit_price|floatformat:2 }}</td>
+<td>₹{{ item.cost_price|floatformat:2 }}</td>
+<td>₹{{ item.total_sales|floatformat:2 }}</td>
+<td>₹{{ item.total_cost|floatformat:2 }}</td>
+<td>₹{{ item.profit|floatformat:2 }}</td>
+
+        </tr>
+        {% endfor %}
+        
+        <tr class="summary">
+            <td class="left">TOTAL</td>
+            <td>{{ total_quantity }}</td>
+            <td colspan="2"></td>
+            <td>N{{ total_sales|floatformat:2 }}</td>
+            <td>N{{ total_cost|floatformat:2 }}</td>
+            <td>N{{ total_profit|floatformat:2 }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<h4>Expenses</h4>
+<table>
+    <thead>
+        <tr>
+            <th class="left">Expense Category</th>
+            <th>Amount (N)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for exp in expense_data %}
+        <tr>
+            <td class="left">{{ exp.category }}</td>
+            <td>N{{ exp.amount|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="summary">
+            <td class="left">Total Expenses</td>
+            <td>N{{ totals.total_expenses|floatformat:2 }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<h4>Summary</h4>
+<table>
+    <tr>
+        <th class="left">Gross Profit</th>
+        <td>N{{ totals.gross_profit|floatformat:2 }}</td>
+    </tr>
+    <tr>
+        <th class="left">Net Profit</th>
+        <td>N{{ totals.net_profit|floatformat:2 }}</td>
+    </tr>
+</table>
+
+<div class="footer">
+    Report generated on {{ now|date:"Y-m-d H:i" }}
+</div>
+
+</body>
+</html>

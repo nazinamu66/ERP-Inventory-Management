@@ -28,6 +28,9 @@ from .forms import AccountDepositForm
 from .forms import ExpenseForm
 from django.views.decorators.http import require_POST
 from inventory.forms import CustomerForm
+from xhtml2pdf import pisa
+
+
 
 
 @login_required
@@ -48,7 +51,7 @@ def record_account_deposit(request):
                     store=request.user.store  # ← required!
 
                 )
-                messages.success(request, f"₹{amount} deposited into {destination.name}.")
+                messages.success(request, f"N{amount} deposited into {destination.name}.")
                 return redirect('accounting:account_ledger', slug=destination.slug)
             except Exception as e:
                 messages.error(request, f"Deposit failed: {e}")
@@ -82,7 +85,7 @@ def record_supplier_payment(request):
                 )
 
                 # 3. Redirect to correct ledger URL name
-                messages.success(request, f"Payment of ₹{amount} recorded for {supplier.name}")
+                messages.success(request, f"Payment of N{amount} recorded for {supplier.name}")
                 return redirect('accounting:supplier_ledger', supplier_id=supplier.id)
 
             except Exception as e:
@@ -92,6 +95,14 @@ def record_supplier_payment(request):
 
     return render(request, 'accounting/record_supplier_payment.html', {'form': form})
 
+from .models import ExpenseEntry  # 👈 Import the new model
+
+from accounting.models import ExpenseEntry
+
+from django.contrib.auth import get_user_model
+from inventory.models import AuditLog
+from inventory.models import Store
+
 @login_required
 def record_expense(request):
     if request.method == 'POST':
@@ -100,28 +111,77 @@ def record_expense(request):
             expense_account = form.cleaned_data['expense_account']
             payment_account = form.cleaned_data['payment_account']
             amount = form.cleaned_data['amount']
+            date = form.cleaned_data['date']
             description = form.cleaned_data['description'] or f"Expense: {expense_account.name}"
 
+            # Fallback store for users like admin with no assigned store
+            store = getattr(request.user, 'store', None) or Store.objects.first()
+
             try:
+                # Record transaction between accounts
                 transaction = record_transaction_by_slug(
                     source_slug=payment_account.slug,
                     destination_slug=expense_account.slug,
                     amount=amount,
                     description=description,
-                    store=request.user.store  # ← required!
-
+                    store=store
                 )
 
-                messages.success(request, f"Expense of ₹{amount} recorded to {expense_account.name}")
+                # Create ExpenseEntry
+                ExpenseEntry.objects.create(
+                    expense_account=expense_account,
+                    payment_account=payment_account,
+                    amount=amount,
+                    description=description,
+                    date=date,
+                    store=store,
+                    user=request.user,
+                    recorded_by=request.user
+                )
+
+                # 📝 Log to AuditLog
+                AuditLog.objects.create(
+                    user=request.user,
+                    action='expense',
+                    description=f"Recorded expense of N{amount} to '{expense_account.name}' from '{payment_account.name}'",
+                    store=store
+                )
+
+                messages.success(request, f"✅ Expense of N{amount} recorded to {expense_account.name}")
                 return redirect('accounting:account_ledger', slug=expense_account.slug)
 
             except Exception as e:
-                messages.error(request, f"Failed to record expense: {e}")
+                messages.error(request, f"❌ Failed to record expense: {e}")
     else:
         form = ExpenseForm()
 
     return render(request, 'accounting/record_expense.html', {'form': form})
 
+
+@login_required
+def expense_history(request):
+    user = request.user
+
+    if user.role == 'admin':
+        expenses = ExpenseEntry.objects.all()
+    else:
+        expenses = ExpenseEntry.objects.filter(store=user.store)
+
+    if request.GET.get('account'):
+        expenses = expenses.filter(expense_account__id=request.GET.get('account'))
+
+    if request.GET.get('start_date'):
+        expenses = expenses.filter(date__gte=request.GET.get('start_date'))
+
+    if request.GET.get('end_date'):
+        expenses = expenses.filter(date__lte=request.GET.get('end_date'))
+
+    accounts = Account.objects.filter(type='expense')
+
+    return render(request, 'accounting/expense_history.html', {
+        'expenses': expenses.select_related('expense_account', 'payment_account', 'user'),
+        'accounts': accounts,
+    })
 
 # views.py
 @login_required
@@ -145,7 +205,7 @@ def record_account_transfer(request):
 
                 )
 
-                messages.success(request, f"₹{amount} transferred from {source.name} to {destination.name}.")
+                messages.success(request, f"N{amount} transferred from {source.name} to {destination.name}.")
                 return redirect('accounting:account_ledger', slug=source.slug)
 
             except Exception as e:
@@ -174,7 +234,7 @@ def withdraw_funds(request):
                     store=request.user.store  # ← required!
 
                 )
-                messages.success(request, f"₹{amount} withdrawn from {account.name}.")
+                messages.success(request, f"N{amount} withdrawn from {account.name}.")
                 return redirect('accounting:account_ledger', slug=account.slug)
             except Exception as e:
                 messages.error(request, f"Withdrawal failed: {e}")
@@ -533,5 +593,356 @@ def account_balances_view(request):
         'balances': balances
     })
 
+from datetime import date, timedelta, datetime
+from django.db.models import F, ExpressionWrapper, DecimalField, Sum
+from inventory.models import SaleItem, Sale
+from accounting.models import ExpenseEntry
+
+def get_profit_loss_context(start_date, end_date, store=None):
+    # Filter sales by date and optionally by store
+    sale_filter = {'sale_date__date__range': (start_date, end_date)}
+    saleitem_filter = {'sale__sale_date__date__range': (start_date, end_date)}
+    expense_filter = {'date__range': (start_date, end_date)}
+
+    if store:
+        sale_filter['store'] = store
+        saleitem_filter['sale__store'] = store
+        expense_filter['store'] = store
+
+    # Revenue
+    revenue = Sale.objects.filter(**sale_filter).aggregate(total=Sum('total_amount'))['total'] or 0
+
+    # COGS
+    cogs_qs = SaleItem.objects.filter(**saleitem_filter).annotate(
+        cost=ExpressionWrapper(F('cost_price') * F('quantity'), output_field=DecimalField())
+    )
+    cogs = cogs_qs.aggregate(total=Sum('cost'))['total'] or 0
+
+    # Expenses
+    expenses = ExpenseEntry.objects.filter(**expense_filter).aggregate(total=Sum('amount'))['total'] or 0
+
+    # Calculations
+    gross_profit = revenue - cogs
+    net_profit = gross_profit - expenses
+
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'revenue': revenue,
+        'cogs': cogs,
+        'gross_profit': gross_profit,
+        'expenses': expenses,
+        'net_profit': net_profit,
+    }
+
+from django.utils.timezone import now
+# from datetime import date, timedelta, datetime
 
 
+# ✅ Make it global
+def parse_date_safe(date_str):
+    try:
+        return datetime.strptime(date_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        try:
+            return datetime.strptime(date_str, '%B %d, %Y').date()  # e.g., May 1, 2025
+        except (ValueError, TypeError):
+            return None
+
+
+@login_required
+def profit_loss_report(request):
+    today = now().date()
+    preset = request.GET.get('preset')
+    store_id = request.GET.get('store')
+
+    # Get selected store or default to user's assigned store
+    store = Store.objects.filter(id=store_id).first() if store_id else getattr(request.user, 'store', None)
+
+    # Handle Preset Filters
+    if preset == 'this_month':
+        start_date = date(today.year, today.month, 1)
+        end_date = today
+    elif preset == 'last_month':
+        first_of_this_month = date(today.year, today.month, 1)
+        last_month_end = first_of_this_month - timedelta(days=1)
+        start_date = date(last_month_end.year, last_month_end.month, 1)
+        end_date = last_month_end
+    elif preset == 'this_year':
+        start_date = date(today.year, 1, 1)
+        end_date = today
+    else:
+        # Custom range from GET
+        start = request.GET.get('start_date')
+        end = request.GET.get('end_date')
+        try:
+            start_date = datetime.strptime(start, "%Y-%m-%d").date() if start else date(today.year, today.month, 1)
+            end_date = datetime.strptime(end, "%Y-%m-%d").date() if end else today
+        except ValueError:
+            start_date = date(today.year, today.month, 1)
+            end_date = today
+
+    # ✅ Only now do we call the profit/loss function
+    context = get_profit_loss_context(start_date, end_date, store=store)
+
+    # Add filter options to the context
+    context['stores'] = Store.objects.all()
+    context['selected_store_id'] = int(store_id) if store_id else None
+
+    return render(request, 'accounting/profit_loss_report.html', context)
+
+from django.http import HttpResponse
+from django.template.loader import get_template
+
+from inventory.models import CompanyProfile  # adjust to your actual path
+
+@login_required
+def profit_loss_pdf_view(request):
+    raw_start = request.GET.get('start_date')
+    raw_end = request.GET.get('end_date')
+    store_id = request.GET.get('store')
+
+    start_date = parse_date_safe(raw_start)
+    end_date = parse_date_safe(raw_end)
+
+    if not start_date or not end_date:
+        messages.error(request, "Invalid date format. Use YYYY-MM-DD.")
+        return redirect('accounting:profit_loss_report')
+
+    store = None
+    if store_id:
+        try:
+            store = Store.objects.get(id=store_id)
+        except Store.DoesNotExist:
+            pass
+    else:
+        store = getattr(request.user, 'store', None)
+
+    context = get_profit_loss_context(start_date, end_date, store)
+    context.update({
+        'request': request,
+        'company': CompanyProfile.objects.first(),
+        'store': store,
+    })
+
+    template = get_template('accounting/profit_loss_pdf.html')
+    html = template.render(context)
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="profit_and_loss_report.pdf"'
+    pisa.CreatePDF(html, dest=response)
+    return response
+
+
+def parse_date_safe(date_str):
+    try:
+        return datetime.strptime(date_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        try:
+            return datetime.strptime(date_str, '%B %d, %Y').date()  # e.g., May 1, 2025
+        except (ValueError, TypeError):
+            return None
+
+
+@login_required
+def profit_loss_detail_report(request):
+    today = now().date()
+    preset = request.GET.get('preset')
+    store_id = request.GET.get('store')
+
+    # 🔁 Parse dates
+    if preset == 'this_month':
+        start_date = date(today.year, today.month, 1)
+        end_date = today
+    elif preset == 'last_month':
+        first_of_this_month = date(today.year, today.month, 1)
+        last_month_end = first_of_this_month - timedelta(days=1)
+        start_date = date(last_month_end.year, last_month_end.month, 1)
+        end_date = last_month_end
+    elif preset == 'this_year':
+        start_date = date(today.year, 1, 1)
+        end_date = today
+    else:
+        start = request.GET.get('start_date')
+        end = request.GET.get('end_date')
+        start_date = parse_date_safe(start) or date(today.year, today.month, 1)
+        end_date = parse_date_safe(end) or today
+
+    # 🏬 Store filtering
+    store = None
+    if store_id:
+        try:
+            store = Store.objects.get(pk=store_id)
+        except Store.DoesNotExist:
+            store = None
+
+    # 📦 Sales data
+    sales_qs = SaleItem.objects.filter(sale__sale_date__date__range=(start_date, end_date))
+    if store:
+        sales_qs = sales_qs.filter(sale__store=store)
+
+    sales_qs = (
+        sales_qs
+        .values('product__name')
+        .annotate(
+            quantity_sold=Sum('quantity'),
+            total_sales=Sum(F('unit_price') * F('quantity'), output_field=DecimalField(max_digits=20, decimal_places=2)),
+            total_cost=Sum(F('cost_price') * F('quantity'), output_field=DecimalField(max_digits=20, decimal_places=2)),
+        )
+        .order_by('product__name')
+    )
+
+    sales_data = []
+    total_sales = total_cost = total_profit = 0
+
+    for item in sales_qs:
+        profit = item['total_sales'] - item['total_cost']
+        sales_data.append({
+            'product_name': item['product__name'],
+            'quantity_sold': item['quantity_sold'],
+            'total_sales': item['total_sales'],
+            'total_cost': item['total_cost'],
+            'profit': profit,
+        })
+        total_sales += item['total_sales'] or 0
+        total_cost += item['total_cost'] or 0
+        total_profit += profit or 0
+
+    # 💸 Expenses data
+    expenses_qs = ExpenseEntry.objects.filter(date__range=(start_date, end_date))
+    if store:
+        expenses_qs = expenses_qs.filter(store=store)
+
+    expenses_qs = (
+        expenses_qs
+        .values('expense_account__name')
+        .annotate(total_expense=Sum('amount'))
+        .order_by('expense_account__name')
+    )
+
+    total_expenses = 0
+    expense_data = []
+    for exp in expenses_qs:
+        expense_data.append({
+            'category': exp['expense_account__name'],
+            'amount': exp['total_expense'],
+        })
+        total_expenses += exp['total_expense'] or 0
+
+    # 🧮 Calculations
+    gross_profit = total_sales - total_cost
+    net_profit = gross_profit - total_expenses
+
+    context = {
+        'start_date': start_date,
+        'end_date': end_date,
+        'sales_data': sales_data,
+        'expense_data': expense_data,
+        'stores': Store.objects.all(),
+        'selected_store_id': int(store_id) if store_id else None,
+        'totals': {
+            'total_sales': total_sales,
+            'total_cost': total_cost,
+            'gross_profit': gross_profit,
+            'total_expenses': total_expenses,
+            'net_profit': net_profit,
+        }
+    }
+
+    return render(request, 'accounting/profit_loss_detail_report.html', context)
+
+@login_required
+def profit_loss_detail_pdf_view(request):
+    start = request.GET.get('start_date')
+    end = request.GET.get('end_date')
+    store_id = request.GET.get('store')
+
+    start_date = parse_date_safe(start)
+    end_date = parse_date_safe(end)
+
+    if not start_date or not end_date:
+        return HttpResponse("Invalid dates provided", status=400)
+
+    store = get_object_or_404(Store, pk=store_id) if store_id else None
+
+    sales_qs = SaleItem.objects.filter(sale__sale_date__date__range=(start_date, end_date))
+    if store:
+        sales_qs = sales_qs.filter(sale__store=store)
+
+    # Annotate basic values (no Sum on expression)
+    sales_qs = (
+        sales_qs
+        .values('product__name', 'unit_price', 'cost_price')
+        .annotate(quantity=Sum('quantity'))
+        .order_by('product__name')
+    )
+
+    items = []
+    total_quantity = total_sales = total_cost = total_profit = 0
+
+    for item in sales_qs:
+        unit_price = item['unit_price'] or 0
+        cost_price = item['cost_price'] or 0
+        quantity = item['quantity'] or 0
+        total_sale = unit_price * quantity
+        total_cogs = cost_price * quantity
+        profit = total_sale - total_cogs
+
+        items.append({
+            'product_name': item['product__name'],
+            'unit_price': unit_price,
+            'cost_price': cost_price,
+            'quantity': quantity,
+            'total_sales': total_sale,
+            'total_cost': total_cogs,
+            'profit': profit,
+        })
+
+        total_quantity += quantity
+        total_sales += total_sale
+        total_cost += total_cogs
+        total_profit += profit
+
+    # Expenses
+    expense_qs = ExpenseEntry.objects.filter(date__range=(start_date, end_date))
+    if store:
+        expense_qs = expense_qs.filter(store=store)
+
+    expense_data = []
+    total_expenses = 0
+
+    for e in expense_qs.values('expense_account__name').annotate(total=Sum('amount')):
+        expense_data.append({
+            'category': e['expense_account__name'],
+            'amount': e['total'] or 0
+        })
+        total_expenses += e['total'] or 0
+
+    gross_profit = total_sales - total_cost
+    net_profit = gross_profit - total_expenses
+
+    context = {
+        'items': items,
+        'expense_data': expense_data,
+        'total_quantity': total_quantity,
+        'total_sales': total_sales,
+        'total_cost': total_cost,
+        'total_profit': total_profit,
+        'totals': {
+            'gross_profit': gross_profit,
+            'net_profit': net_profit,
+            'total_expenses': total_expenses,
+        },
+        'start_date': start_date,
+        'end_date': end_date,
+        'company': CompanyProfile.objects.first(),
+        'now': now(),
+        'request': request,
+    }
+
+    template = get_template('accounting/profit_loss_detail_pdf.html')
+    html = template.render(context)
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = 'attachment; filename="profit_loss_detail_report.pdf"'
+    pisa.CreatePDF(html, dest=response)
+    return response

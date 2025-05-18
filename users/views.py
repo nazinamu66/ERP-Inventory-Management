@@ -16,6 +16,8 @@ import json
 from inventory.models import Product, Stock
 from inventory.models import Sale, SaleItem
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField
+from accounting.models import ExpenseEntry
+
 
 
 
@@ -213,6 +215,21 @@ def admin_dashboard(request):
     revenue_labels = [(start_of_week + timedelta(days=i)).strftime('%a') for i in range(7)]
     revenue_values = [day_map.get(start_of_week + timedelta(days=i), 0) for i in range(7)]
 
+    # 💰 Total Revenue
+    revenue = Sale.objects.aggregate(total=Sum('total_amount'))['total'] or 0
+
+    # 💸 Cost of Goods Sold (COGS)
+    cogs_qs = SaleItem.objects.annotate(
+        cost=ExpressionWrapper(F('cost_price') * F('quantity'), output_field=DecimalField())
+    )
+    cogs = cogs_qs.aggregate(total=Sum('cost'))['total'] or 0
+
+    # 🧾 Expenses
+    expenses = ExpenseEntry.objects.aggregate(total=Sum('amount'))['total'] or 0
+
+    # 🧮 Net Profit
+    net_profit = revenue - cogs - expenses
+
   
 
     # Metrics
@@ -241,6 +258,8 @@ def admin_dashboard(request):
     store_labels, store_values = get_sales_by_store()
 
     context = {
+        'total_revenue': revenue,
+        'net_profit': net_profit,
         'total_products': total_products,
         'total_stock': total_stock,
         'sales_today': sales_today,

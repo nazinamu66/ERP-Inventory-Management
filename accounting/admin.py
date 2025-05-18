@@ -9,6 +9,9 @@ admin.site.register(SupplierPayment)
 from django.contrib import admin
 from .models import SupplierLedger
 
+from .models import ExpenseEntry
+
+
 @admin.register(SupplierLedger)
 class SupplierLedgerAdmin(admin.ModelAdmin):
     list_display = ('supplier', 'transaction', 'amount', 'entry_type', 'created_at')
@@ -39,3 +42,11 @@ class TransactionAdmin(admin.ModelAdmin):
     list_filter = ('created_at', 'source_account', 'destination_account')
     search_fields = ('description',)
     readonly_fields = ('created_at',)
+
+
+# accounting/admin.py
+
+@admin.register(ExpenseEntry)
+class ExpenseEntryAdmin(admin.ModelAdmin):
+    list_display = ('expense_account', 'amount', 'store', 'user', 'date')
+    list_filter = ('store', 'expense_account', 'date')

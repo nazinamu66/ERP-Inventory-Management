@@ -1,0 +1,112 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Profit & Loss Detail Report{% endblock %}
+
+{% block content %}
+<h3>Profit & Loss Detail Report</h3>
+
+<form method="get" class="row g-3 mb-4">
+    <div class="col-md-3">
+        <label for="start_date">Start Date</label>
+        <input type="date" name="start_date" id="start_date" value="{{ start_date }}" class="form-control">
+    </div>
+    <div class="col-md-3">
+        <label for="end_date">End Date</label>
+        <input type="date" name="end_date" id="end_date" value="{{ end_date }}" class="form-control">
+    </div>
+    <div class="col-md-3">
+        <label for="store">Store</label>
+        <select name="store" id="store" class="form-control">
+            <option value="">All Stores</option>
+            {% for s in stores %}
+                <option value="{{ s.id }}" {% if selected_store_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
+    </div>
+</form>
+
+<p><strong>Period:</strong> {{ start_date }} to {{ end_date }}</p>
+
+<h4>Sales Details</h4>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Product</th>
+            <th>Quantity Sold</th>
+            <th>Total Sales (₹)</th>
+            <th>Total Cost (₹)</th>
+            <th>Profit (₹)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in sales_data %}
+        <tr>
+            <td>{{ item.product_name }}</td>
+            <td>{{ item.quantity_sold }}</td>
+            <td>{{ item.total_sales|floatformat:2 }}</td>
+            <td>{{ item.total_cost|floatformat:2 }}</td>
+            <td>{{ item.profit|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center">No sales data found for this period.</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <th>Total</th>
+            <th></th>
+            <th>{{ totals.total_sales|floatformat:2 }}</th>
+            <th>{{ totals.total_cost|floatformat:2 }}</th>
+            <th>{{ totals.gross_profit|floatformat:2 }}</th>
+        </tr>
+    </tfoot>
+</table>
+
+<h4>Expenses Details</h4>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Expense Category</th>
+            <th>Amount (₹)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for exp in expense_data %}
+        <tr>
+            <td>{{ exp.category }}</td>
+            <td>{{ exp.amount|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="2" class="text-center">No expense data found for this period.</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <th>Total Expenses</th>
+            <th>{{ totals.total_expenses|floatformat:2 }}</th>
+        </tr>
+    </tfoot>
+</table>
+
+<h4>Summary</h4>
+<table class="table table-bordered">
+    <tbody>
+        <tr>
+            <th>Gross Profit</th>
+            <td>₹{{ totals.gross_profit|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <th>Net Profit</th>
+            <td>₹{{ totals.net_profit|floatformat:2 }}</td>
+        </tr>
+    </tbody>
+</table>
+
+<a href="{% url 'accounting:profit_loss_detail_pdf' %}?start_date={{ start_date }}&end_date={{ end_date }}{% if selected_store_id %}&store={{ selected_store_id }}{% endif %}" class="btn btn-outline-danger float-end">
+    <i class="bi bi-file-earmark-pdf"></i> Export to PDF
+</a>
+
+
+{% endblock %}

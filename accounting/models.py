@@ -3,7 +3,8 @@ from django.utils import timezone
 from django.conf import settings
 from django.utils.timezone import now
 from inventory.models import Supplier
-from inventory.models import Store 
+from inventory.models import Store
+from django.contrib.auth import get_user_model
 
 
 
@@ -104,5 +105,34 @@ class SupplierPayment(models.Model):
 
     def __str__(self):
         return f"Payment of {self.amount} to {self.supplier.name} on {self.payment_date}"
+    
+
+
+class ExpenseEntry(models.Model):
+    expense_account = models.ForeignKey(Account, related_name='expenses', on_delete=models.CASCADE)
+    payment_account = models.ForeignKey(Account, related_name='payments', on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    description = models.TextField(blank=True)
+    date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    store = models.ForeignKey(Store, on_delete=models.CASCADE)
+
+    user = models.ForeignKey(
+        get_user_model(), 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name='expenses_as_user'  # 👈 define unique related_name
+    )
+    
+    recorded_by = models.ForeignKey(
+        get_user_model(), 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name='expenses_recorded'  # 👈 define unique related_name
+    )
+
+    def __str__(self):
+        return f"{self.expense_account.name} - ₹{self.amount}"
+
 
  

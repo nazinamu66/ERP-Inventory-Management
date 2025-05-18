@@ -338,12 +338,13 @@ class AuditLog(models.Model):
         ('transfer', 'Stock Transfer'),
         ('create_user', 'User Created'),
         ('delete_user', 'User Deleted'),
-        # Add more actions later as needed
+        ('expense', 'Expense Entry'),  # 👈 Add this
     ]
 
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     action = models.CharField(max_length=50, choices=ACTION_CHOICES)
     description = models.TextField()
+    store = models.ForeignKey(Store, null=True, blank=True, on_delete=models.SET_NULL)
     timestamp = models.DateTimeField(default=now)
 
     def __str__(self):

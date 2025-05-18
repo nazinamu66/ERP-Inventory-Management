@@ -2,7 +2,7 @@ from django.urls import path
 from .views import account_balances_view
 from . import views
 from .views import customer_ledger_pdf  # Make sure this exists in views.py
-from .views import record_supplier_payment
+from .views import record_supplier_payment, profit_loss_report
 
 
 
@@ -26,5 +26,11 @@ urlpatterns = [
     path('record-expense/', views.record_expense, name='record_expense'),
     path('customers/<int:customer_id>/delete/', views.delete_customer, name='delete_customer'),
     path('customers/<int:customer_id>/edit/', views.edit_customer, name='edit_customer'),
+    path('expenses/', views.expense_history, name='expense_history'),
+    path('profit-loss/', profit_loss_report, name='profit_loss_report'),
+    path('profit-loss/pdf/', views.profit_loss_pdf_view, name='profit_loss_pdf'),
+    path('profit-loss/detail/', views.profit_loss_detail_report, name='profit_loss_detail_report'),
+    path('profit-loss/detail/pdf/', views.profit_loss_detail_pdf_view, name='profit_loss_detail_pdf'),
+
 ]
 

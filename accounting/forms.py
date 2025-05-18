@@ -5,6 +5,8 @@ from .models import CustomerPayment
 from inventory.models import Customer, Sale  # 👈 include Sale
 from accounting.models import Account
 from inventory.models import Supplier
+from django.db.models import F
+
 
 
 class ExpenseForm(forms.Form):
@@ -67,7 +69,6 @@ class SupplierPaymentForm(forms.Form):
 
 
 
-from django.db.models import F
 
 class CustomerPaymentForm(forms.ModelForm):
     invoice = forms.ModelChoiceField(

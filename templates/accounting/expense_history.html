@@ -1,0 +1,65 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Expense History{% endblock %}
+
+{% block content %}
+<h3>Expense History</h3>
+
+<form method="get" class="row mb-4">
+    <div class="col-md-3">
+        <label>Category</label>
+        <select name="account" class="form-control">
+            <option value="">All</option>
+            {% for acc in accounts %}
+                <option value="{{ acc.id }}" {% if request.GET.account == acc.id|stringformat:"s" %}selected{% endif %}>{{ acc.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label>From</label>
+        <input type="date" name="start_date" value="{{ request.GET.start_date }}" class="form-control">
+    </div>
+    <div class="col-md-3">
+        <label>To</label>
+        <input type="date" name="end_date" value="{{ request.GET.end_date }}" class="form-control">
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">Filter</button>
+    </div>
+</form>
+
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Category</th>
+            {% if request.user.role == 'admin' %}
+            <th>Store</th>
+            {% endif %}
+            <th>Amount</th>
+            <th>Paid From</th>
+            <th>Description</th>
+            <th>By</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for exp in expenses %}
+        <tr>
+            <td>{{ exp.date }}</td>
+            <td>{{ exp.expense_account.name }}</td>
+            {% if request.user.role == 'admin' %}
+            <td>{{ exp.store.name }}</td>
+            {% endif %}
+            <td>₹{{ exp.amount|floatformat:2 }}</td>
+            <td>{{ exp.payment_account.name }}</td>
+            <td>{{ exp.description|default:"-" }}</td>
+            <td>{{ exp.user.username }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="6" class="text-center text-muted">No expenses found.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+

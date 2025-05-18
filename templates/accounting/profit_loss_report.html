@@ -1,0 +1,99 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Profit & Loss Report{% endblock %}
+
+{% block content %}
+<h3>📊 Profit & Loss Report</h3>
+
+<!-- 🔍 Filter Form -->
+<form method="get" class="row mb-4">
+  <div class="col-md-4">
+    <label>From</label>
+    <input type="date" name="start_date" class="form-control" value="{{ start_date }}">
+  </div>
+  <div class="col-md-4">
+    <label>To</label>
+    <input type="date" name="end_date" class="form-control" value="{{ end_date }}">
+  </div>
+  <div class="d-flex gap-2 mb-3">
+    <a href="?preset=this_month" class="btn btn-outline-primary">📆 This Month</a>
+    <a href="?preset=last_month" class="btn btn-outline-secondary">📅 Last Month</a>
+    <a href="?preset=this_year" class="btn btn-outline-dark">📈 This Year</a>
+  </div>
+  <div class="col-md-3">
+    <label for="store">Store</label>
+    <select name="store" class="form-control">
+        <option value="">All Stores</option>
+        {% for s in stores %}
+            <option value="{{ s.id }}" {% if selected_store_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+  <div class="col-md-4 d-flex align-items-end">
+    <button type="submit" class="btn btn-primary w-100">Apply Filter</button>
+  </div>
+</form>
+
+<div class="mb-3 d-flex gap-2">
+  <button class="btn btn-outline-secondary" onclick="window.print()">🖨️ Print</button>
+  <a href="{% url 'accounting:profit_loss_pdf' %}?start_date={{ start_date }}&end_date={{ end_date }}{% if selected_store_id %}&store={{ selected_store_id }}{% endif %}" class="btn btn-outline-danger float-end">
+    <i class="bi bi-file-earmark-pdf"></i> Export to PDF
+</a>
+</div>
+
+
+<!-- 📈 P&L Summary -->
+<div class="row">
+  <div class="col-md-6">
+    <div class="card border-success mb-3">
+      <div class="card-header bg-success text-white">Revenue</div>
+      <div class="card-body">
+        <h5 class="card-title">₹{{ revenue|floatformat:2 }}</h5>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card border-danger mb-3">
+      <div class="card-header bg-danger text-white">Cost of Goods Sold (COGS)</div>
+      <div class="card-body">
+        <h5 class="card-title">₹{{ cogs|floatformat:2 }}</h5>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card border-info mb-3">
+      <div class="card-header bg-info text-white">Gross Profit</div>
+      <div class="card-body">
+        <h5 class="card-title">₹{{ gross_profit|floatformat:2 }}</h5>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card border-warning mb-3">
+      <div class="card-header bg-warning text-dark">Expenses</div>
+      <div class="card-body">
+        <h5 class="card-title">₹{{ expenses|floatformat:2 }}</h5>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-12">
+    <div class="card border-primary">
+      <div class="card-header bg-primary text-white">Net Profit</div>
+      <div class="card-body">
+        <h4 class="card-title {% if net_profit < 0 %}text-danger{% else %}text-success{% endif %}">
+          ₹{{ net_profit|floatformat:2 }}
+        </h4>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
