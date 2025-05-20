@@ -40,6 +40,7 @@ urlpatterns = [
     path('purchases/<int:po_id>/', views.purchase_order_detail, name='purchase_order_detail'),
     # path('purchases/<int:pk>/delete/', views.purchase_delete_view, name='purchase_delete'),
     path('purchases/<int:pk>/delete/', views.purchase_order_delete_view, name='purchase_delete'),
+    
     path('purchases/<int:po_id>/received/delete/', views.purchase_received_delete_view, name='purchase_received_delete'),
 
 

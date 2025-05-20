@@ -291,6 +291,7 @@ class PurchaseOrder(models.Model):
     ]
 
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
+    store = models.ForeignKey(Store, on_delete=models.SET_NULL, null=True, blank=True)  # ✅ add this
     date = models.DateField(auto_now_add=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
@@ -321,6 +322,8 @@ class PurchaseOrderItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, default=1)
     quantity = models.IntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    expected_sales_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)  # 🆕 NEW
+
 
     @property
     def subtotal(self):

@@ -8,38 +8,97 @@
     {% csrf_token %}
     <div class="mb-3">
         <label for="supplier">Supplier</label>
-        {{ po_form.supplier }}
+        <input list="supplier-list" name="supplier" id="supplier-input" class="form-control" placeholder="Type or select a supplier" required>
+        <datalist id="supplier-list">
+            {% for s in suppliers %}
+                <option value="{{ s.name }}">
+            {% endfor %}
+        </datalist>
     </div>
+    
     <a href="{% url 'inventory:add_supplier' %}" class="btn btn-sm btn-outline-primary mb-2">
         + Add New Supplier
     </a>
     
     <hr>
     <h5>Order Items</h5>
+
     {{ item_formset.management_form }}
-
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Product</th>
-                <th>Qty</th>
-                <th>Unit Price</th>
-                <th>Remove?</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for form in item_formset %}
-                <tr>
-                    <td>{{ form.product }}</td>
-                    <td>{{ form.quantity }}</td>
-                    <td>{{ form.unit_price }}</td>
-                    <td>{{ form.DELETE }}</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <button type="submit" class="btn btn-success">Submit PO</button>
-</form>
-
+    
+    <div id="formset-meta" data-form-count="{{ item_formset.total_form_count|default:0 }}"></div>
+    
+    <div id="items-container">
+        {% for form in item_formset %}
+        <div class="formset-row border p-3 mb-3 bg-light rounded">
+            <div class="row">
+                <div class="col-md-3">{{ form.product.label_tag }}{{ form.product }}</div>
+                <div class="col-md-2">{{ form.quantity.label_tag }}{{ form.quantity }}</div>
+                <div class="col-md-2">{{ form.unit_price.label_tag }}{{ form.unit_price }}</div>
+                <div class="col-md-3">{{ form.expected_sales_price.label_tag }}{{ form.expected_sales_price }}</div>
+                <div class="col-md-2 d-flex align-items-end">{{ form.DELETE }} <span class="ms-2">Delete</span></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Template for new formset row -->
+    <template id="empty-form-template">
+        <div class="formset-row border p-3 mb-3 bg-light rounded">
+            <div class="row">
+                <div class="col-md-3">
+                    <label for="id_form-__prefix__-product">Product</label>
+                    <select name="form-__prefix__-product" id="id_form-__prefix__-product" class="form-control"></select>
+                </div>
+                <div class="col-md-2">
+                    <label for="id_form-__prefix__-quantity">Qty</label>
+                    <input type="number" name="form-__prefix__-quantity" class="form-control" id="id_form-__prefix__-quantity">
+                </div>
+                <div class="col-md-2">
+                    <label for="id_form-__prefix__-unit_price">Unit Price</label>
+                    <input type="number" step="0.01" name="form-__prefix__-unit_price" class="form-control" id="id_form-__prefix__-unit_price">
+                </div>
+                <div class="col-md-3">
+                    <label for="id_form-__prefix__-expected_sales_price">Expected Sale Price</label>
+                    <input type="number" step="0.01" name="form-__prefix__-expected_sales_price" class="form-control" id="id_form-__prefix__-expected_sales_price">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <input type="checkbox" name="form-__prefix__-DELETE" id="id_form-__prefix__-DELETE">
+                    <span class="ms-2">Delete</span>
+                </div>
+            </div>
+        </div>
+    </template>
+    
+    <div class="text-end">
+        <button type="button" class="btn btn-outline-primary" id="add-item-btn">+ Add Item</button>
+    </div>
+    
+    <button type="submit" class="btn btn-success mt-3">Submit PO</button>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const formsetPrefix = 'form';
+        const container = document.getElementById('items-container');
+        const template = document.getElementById('empty-form-template').innerHTML;
+        const totalForms = document.getElementById(`id_${formsetPrefix}-TOTAL_FORMS`);
+        let formCount = parseInt(document.getElementById('formset-meta').dataset.formCount || 0);
+    
+        document.getElementById('add-item-btn').addEventListener('click', () => {
+            const newFormHtml = template.replace(/__prefix__/g, formCount);
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = newFormHtml;
+    
+            // Clone product select from the first existing form if available
+            const firstSelect = container.querySelector('select');
+            if (firstSelect) {
+                const newSelect = wrapper.querySelector('select');
+                newSelect.innerHTML = firstSelect.innerHTML;
+            }
+    
+            container.appendChild(wrapper.firstElementChild);
+            totalForms.value = ++formCount;
+        });
+    });
+    </script>
+    
 {% endblock %}

@@ -25,6 +25,10 @@
                 <option value="{{ s.id }}" {% if selected_store == s.id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
             {% endfor %}
         </select>
+        <a href="{% url 'inventory:inventory_report' %}?clear=1" class="btn btn-outline-secondary">
+            Reset Filters
+          </a>
+          
     </div>
     {% endif %}
     <div class="col-md-4 align-self-end">

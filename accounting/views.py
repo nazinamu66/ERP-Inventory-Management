@@ -18,7 +18,6 @@ from .forms import CustomerPaymentForm
 from .models import CustomerPayment, Account, TransactionLine, SupplierPayment
 from .services import calculate_account_balances, record_transaction_by_slug
 from inventory.models import Customer, Sale
-from inventory.models import CompanyProfile  # adjust if path differs
 from accounting.models import SupplierLedger
 from inventory.models import Supplier
 from inventory.models import Purchase
@@ -29,6 +28,17 @@ from .forms import ExpenseForm
 from django.views.decorators.http import require_POST
 from inventory.forms import CustomerForm
 from xhtml2pdf import pisa
+
+from django.template.loader import get_template
+from inventory.models import CompanyProfile  
+from django.db.models import Q
+from operator import itemgetter
+
+
+from datetime import date
+from django.db.models import ExpressionWrapper, DecimalField
+from inventory.models import SaleItem
+from accounting.models import ExpenseEntry
 
 
 
@@ -343,12 +353,6 @@ def build_customer_ledger(customer, from_date_str=None, to_date_str=None):
     return ledger, running_balance
 
 
-
-from django.db.models import Q
-
-from operator import itemgetter  # for sorting lists of dicts
-
-
 @login_required
 def customer_list_with_balances(request):
     query = request.GET.get('q', '').strip()
@@ -484,7 +488,6 @@ def delete_customer(request, customer_id):
     return redirect('accounting:customer_list')
 
 
-# from django.db.models import Q
 
 @login_required
 def account_ledger_view(request, slug):
@@ -593,10 +596,6 @@ def account_balances_view(request):
         'balances': balances
     })
 
-from datetime import date, timedelta, datetime
-from django.db.models import F, ExpressionWrapper, DecimalField, Sum
-from inventory.models import SaleItem, Sale
-from accounting.models import ExpenseEntry
 
 def get_profit_loss_context(start_date, end_date, store=None):
     # Filter sales by date and optionally by store
@@ -690,11 +689,7 @@ def profit_loss_report(request):
     context['selected_store_id'] = int(store_id) if store_id else None
 
     return render(request, 'accounting/profit_loss_report.html', context)
-
-from django.http import HttpResponse
-from django.template.loader import get_template
-
-from inventory.models import CompanyProfile  # adjust to your actual path
+# adjust to your actual path
 
 @login_required
 def profit_loss_pdf_view(request):

@@ -40,6 +40,8 @@ Then:
 python manage.py createsuperuser
 
 In shell
+python manage.py shell  
+ 
 from accounting.services import create_system_accounts
 create_system_accounts()
 

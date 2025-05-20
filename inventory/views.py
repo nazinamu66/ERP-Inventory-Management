@@ -120,35 +120,40 @@ def export_po_receipt_pdf(request, po_id):
 
 @login_required
 def inventory_report_view(request):
-    role = getattr(request.user, 'role', '').lower()
-    store = getattr(request.user, 'store', None)
+    user = request.user
+    role = getattr(user, 'role', '').lower()
+    store = getattr(user, 'store', None)
+
+    # Reset filters
+    if 'clear' in request.GET:
+        return redirect('inventory:inventory_report')
 
     stocks = Stock.objects.select_related('product', 'store')
-    if role == 'staff' and store:
+
+    # Visibility control
+    if role in ['manager', 'clerk', 'sales'] and store:
         stocks = stocks.filter(store=store)
+        allowed_stores = Store.objects.filter(id=store.id)
+    else:
+        store_id = request.GET.get('store')
+        if store_id:
+            stocks = stocks.filter(store_id=store_id)
+        allowed_stores = Store.objects.all()
 
-    # Filters
     product_id = request.GET.get('product')
-    store_id = request.GET.get('store')
-
     if product_id:
         stocks = stocks.filter(product_id=product_id)
-    if store_id and role != 'staff':
-        stocks = stocks.filter(store_id=store_id)
 
-    # Grand totals
+    # Totals
     total_quantity = sum(s.quantity for s in stocks)
     total_value = sum(s.quantity * (s.cost_price or 0) for s in stocks)
 
-    products = Product.objects.all()
-    stores = Store.objects.all()
-
     return render(request, 'dashboard/inventory_report.html', {
         'stocks': stocks,
-        'products': products,
-        'stores': stores,
+        'products': Product.objects.all(),
+        'stores': allowed_stores,
         'selected_product': product_id,
-        'selected_store': store_id,
+        'selected_store': request.GET.get('store', ''),
         'total_quantity': total_quantity,
         'total_value': total_value,
     })
@@ -334,27 +339,27 @@ def receive_purchase_order(request, po_id):
 
                     total_value += quantity * unit_price
 
+                # ✅ Save the store to the Purchase Order!
                 po.status = 'received'
+                po.store = store
                 po.save()
 
+                # ✅ Audit & accounting
                 AuditLog.objects.create(
                     user=request.user,
                     action='adjustment',
-                    description=f"{request.user.username} received PO-{po.id} and updated stock at {store.name}."
+                    description=f"{request.user.username} received PO-{po.id} and updated stock at {store.name}.",
+                    store=store
                 )
 
-                # ✅ Record slug-based accounting transaction
                 from accounting.services import record_transaction_by_slug
                 record_transaction_by_slug(
                     source_slug="accounts-payable",
                     destination_slug="inventory-assets",
                     amount=total_value,
                     description=f"PO-{po.id} Goods Received",
-                    supplier=po.supplier,  # ✅ Add this line
-                    store= store # ← required!
-
-
-                    
+                    supplier=po.supplier,
+                    store=store
                 )
 
                 messages.success(request, "Purchase Order received and accounting recorded.")
@@ -376,27 +381,24 @@ def purchase_received_delete_view(request, po_id):
         return HttpResponseForbidden("Only managers or admins can delete received purchases.")
 
     if po.status != 'received':
-        messages.error(request, "Only received POs can be deleted from this action.")
+        messages.error(request, "Only received POs can be deleted.")
         return redirect('inventory:purchase_order_detail', po_id=po.id)
 
     try:
         with transaction.atomic():
-            # Reverse stock increments
             for item in po.items.select_related('product'):
                 product = item.product
                 quantity = item.quantity
 
-                # Revert product total quantity
-                product.total_quantity -= quantity
+                product.total_quantity = max(product.total_quantity - quantity, 0)
                 product.save(update_fields=["total_quantity"])
 
-                # Revert stock per store
-                stock = Stock.objects.filter(product=product, store__in=[request.user.store, po.created_by.store]).first()
-                if stock:
-                    stock.quantity -= quantity
-                    stock.save(update_fields=["quantity"])
+                if po.store:
+                    stock = Stock.objects.filter(product=product, store=po.store).first()
+                    if stock:
+                        stock.quantity = max(stock.quantity - quantity, 0)
+                        stock.save(update_fields=["quantity"])
 
-            # Reverse the accounting transaction
             from accounting.models import Transaction
             related_txn = Transaction.objects.filter(description__icontains=f"PO-{po.id} Goods Received").first()
 
@@ -408,15 +410,16 @@ def purchase_received_delete_view(request, po_id):
 
             AuditLog.objects.create(
                 user=request.user,
+                store=po.store,
                 action='adjustment',
-                description=f"{request.user.username} deleted received PO-{po.id} and reversed accounting/stock."
+                description=f"{request.user.username} deleted PO-{po.id} and reversed stock/accounting."
             )
 
-            messages.success(request, f"Received Purchase Order PO-{po.id} deleted successfully and reversed.")
+            messages.success(request, f"PO-{po.id} deleted and reversed.")
             return redirect('inventory:purchase_order_list')
 
     except Exception as e:
-        logger.error(f"❌ Error deleting received PO-{po.id}: {e}")
+        logger.error(f"❌ Error deleting PO-{po.id}: {e}")
         messages.error(request, f"An error occurred: {e}")
         return redirect('inventory:purchase_order_detail', po_id=po.id)
 
@@ -879,15 +882,25 @@ def audit_log_detail_view(request, pk):
 
 
 from accounting.services import record_transaction_by_slug
+from .models import Customer
 
 @login_required
 def sale_receipt_create(request):
     if request.user.role not in ['sales', 'clerk', 'manager', 'admin'] and not request.user.is_superuser:
         return render(request, 'errors/permission_denied.html', status=403)
 
-    from .forms import SaleReceiptForm
-    form = SaleReceiptForm(request.POST or None, request=request)
-    formset = SaleItemFormSet(request.POST or None, prefix="form")
+    form_data = request.POST.copy()
+    customer_name = form_data.get('customer')
+
+    if customer_name:
+        customer, _ = Customer.objects.get_or_create(
+            name__iexact=customer_name.strip(),
+            defaults={"name": customer_name}
+        )
+        form_data['customer'] = customer.id
+
+    form = SaleForm(form_data or None, request=request)
+    formset = SaleItemFormSet(form_data or None, prefix="form")
 
     if request.method == 'POST' and form.is_valid() and formset.is_valid():
         try:
@@ -969,7 +982,13 @@ def sale_receipt_create(request):
             logger.error(f"❌ Sale receipt failed: {e}")
             messages.error(request, "Something went wrong while recording the receipt.")
 
-    return render(request, 'dashboard/sale_receipt_form.html', {'form': form, 'formset': formset})
+    # Send all customers to template for datalist
+    customers = Customer.objects.all()
+    return render(request, 'dashboard/sale_receipt_form.html', {
+        'form': form,
+        'formset': formset,
+        'customers': customers,
+    })
 
 @login_required
 def invoice_create(request):
@@ -1384,15 +1403,25 @@ def stock_adjustment_create(request):
 
 @login_required
 def create_purchase_order(request):
-    ItemFormSet = modelformset_factory(PurchaseOrderItem, form=PurchaseOrderItemForm, extra=1, can_delete=True)
-    
-    if request.method == 'POST':
-        po_form = PurchaseOrderForm(request.POST)
-        item_formset = ItemFormSet(request.POST, queryset=PurchaseOrderItem.objects.none())
+    ItemFormSet = modelformset_factory(
+        PurchaseOrderItem, 
+        form=PurchaseOrderItemForm, 
+        extra=1, 
+        can_delete=True
+    )
 
-        if po_form.is_valid() and item_formset.is_valid():
-            po = po_form.save(commit=False)
-            po.created_by = request.user
+    if request.method == 'POST':
+        item_formset = ItemFormSet(request.POST, queryset=PurchaseOrderItem.objects.none())
+        supplier_name = request.POST.get('supplier')
+
+        if item_formset.is_valid() and supplier_name:
+            supplier_name = supplier_name.strip()
+            supplier, _ = Supplier.objects.get_or_create(
+                name__iexact=supplier_name,
+                defaults={"name": supplier_name}
+            )
+
+            po = PurchaseOrder(supplier=supplier, created_by=request.user)
             po.save()
 
             for form in item_formset:
@@ -1403,15 +1432,14 @@ def create_purchase_order(request):
 
             messages.success(request, "Purchase Order created successfully.")
             return redirect('inventory:purchase_order_list')
+
     else:
-        po_form = PurchaseOrderForm()
         item_formset = ItemFormSet(queryset=PurchaseOrderItem.objects.none())
 
     return render(request, 'dashboard/purchase_order_form.html', {
-        'po_form': po_form,
         'item_formset': item_formset,
+        'suppliers': Supplier.objects.all(),
     })
-
 
 @require_POST
 @login_required

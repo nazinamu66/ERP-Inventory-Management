@@ -75,7 +75,7 @@ class PurchaseOrderForm(forms.ModelForm):
 class PurchaseOrderItemForm(forms.ModelForm):
     class Meta:
         model = PurchaseOrderItem
-        fields = ['product', 'quantity', 'unit_price']
+        fields = ['product', 'quantity', 'unit_price', 'expected_sales_price']
 
 
 class SaleForm(forms.ModelForm):
