@@ -17,7 +17,7 @@ urlpatterns = [
     # Dashboard Redirects
     path('dashboard/', views.redirect_dashboard, name='dashboard'),
     # path('dashboard/sales/', views.sales_dashboard, name='sales_dashboard'),
-    path('dashboard/manager/', views.manager_dashboard, name='manager_dashboard'),
+    # path('dashboard/manager/', views.manager_dashboard, name='manager_dashboard'),
     # path('dashboard/store/', views.store_dashboard, name='store_dashboard'),
 
     # Products & Stock
@@ -38,9 +38,8 @@ urlpatterns = [
     path('purchases/new/', views.create_purchase_order, name='create_purchase_order'),
     path('purchases/', views.purchase_order_list, name='purchase_order_list'),
     path('purchases/<int:po_id>/', views.purchase_order_detail, name='purchase_order_detail'),
-    # path('purchases/<int:pk>/delete/', views.purchase_delete_view, name='purchase_delete'),
     path('purchases/<int:pk>/delete/', views.purchase_order_delete_view, name='purchase_delete'),
-    
+    path('api/get-product-prices/', views.get_product_prices, name='get_product_prices'),
     path('purchases/<int:po_id>/received/delete/', views.purchase_received_delete_view, name='purchase_received_delete'),
 
 

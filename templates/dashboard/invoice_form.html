@@ -4,172 +4,208 @@
 <h3>Create Invoice</h3>
 
 <form method="POST" novalidate>
-    {% csrf_token %}
-    {{ formset.management_form }}
-    <input type="hidden" name="grand_total" id="id_grand_total" value="0.00">
+  {% csrf_token %}
+  {{ formset.management_form }}
+  <input type="hidden" name="grand_total" id="id_grand_total" value="0.00">
 
-    <div id="formset-meta" data-form-count="{{ formset.total_form_count|default:0 }}"></div>
+  <div id="formset-meta" data-form-count="{{ formset.total_form_count|default:0 }}"></div>
 
-    <!-- INVOICE DETAILS -->
-    <div class="card mb-4 p-3">
-        <h5>Invoice Info</h5>
+  <!-- INVOICE DETAILS -->
+  <div class="card mb-4 p-3">
+    <h5>Invoice Info</h5>
 
-        <div class="mb-3">
-            <label>Invoice Number</label>
-            <input type="text" class="form-control" 
-                   value="{{ form.instance.receipt_number|default:'(Generated after save)' }}" readonly>
-        </div>
-        <a href="{% url 'inventory:customer_create' %}?next={% url 'inventory:invoice_create' %}">Add Customer</a>
+    <div class="mb-3">
+      <label>Invoice Number</label>
+      <input type="text" class="form-control" 
+             value="{{ form.instance.receipt_number|default:'(Generated after save)' }}" readonly>
+    </div>
 
-        {% for field in form %}
-        <div class="mb-3">
+    <a href="{% url 'inventory:customer_create' %}?next={% url 'inventory:invoice_create' %}" class="btn btn-sm btn-outline-primary mb-2">+ Add Customer</a>
+
+    {% for field in form.visible_fields %}
+    <div class="mb-3">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}
+        <div class="text-danger">{{ field.errors }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- INVOICE ITEMS -->
+  <div class="card mb-4 p-3">
+    <h5>Items</h5>
+
+    <div id="items-container">
+      {% for item_form in formset %}
+      <div class="formset-item border rounded p-3 mb-3 bg-light">
+        <div class="row">
+          {% for field in item_form.visible_fields %}
+          <div class="col-md-4 mb-2">
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
-            {% if field.errors %}
-            <div class="text-danger">{{ field.errors }}</div>
+            {% if field.name == 'product' %}
+              <div class="text-muted small stock-label">Stock: <span class="stock-value">-</span></div>
             {% endif %}
+            {% if field.errors %}
+              <div class="text-danger">{{ field.errors }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+          <div class="col-md-2 d-flex align-items-end">
+            <button type="button" class="btn btn-danger btn-sm remove-item">Remove</button>
+          </div>
         </div>
-        {% endfor %}
+      </div>
+      {% endfor %}
     </div>
 
-    <!-- INVOICE ITEMS -->
-    <div class="card mb-4 p-3">
-        <h5>Items</h5>
-
-        <div id="items-container">
-            {% for form in formset %}
-            <div class="border rounded p-3 mb-3 bg-light formset-item">
-                <div class="row">
-                    {% for field in form.visible_fields %}
-                    <div class="col-md-4 mb-2">
-                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                        {{ field }}
-                        {% if field.errors %}
-                        <div class="text-danger">{{ field.errors }}</div>
-                        {% endif %}
-                    </div>
-                    {% endfor %}
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="button" class="btn btn-danger btn-sm remove-item">Remove</button>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
+    <!-- Empty form template -->
+    <template id="empty-form-template">
+      <div class="formset-item border rounded p-3 mb-3 bg-light">
+        <div class="row">
+          {% for field in formset.empty_form.visible_fields %}
+          <div class="col-md-4 mb-2">
+            <label>{{ field.label }}</label>
+            {{ field.as_widget }}
+            {% if field.name == 'product' %}
+              <div class="text-muted small stock-label">Stock: <span class="stock-value">-</span></div>
+            {% endif %}
+          </div>
+          {% endfor %}
+          <div class="col-md-2 d-flex align-items-end">
+            <button type="button" class="btn btn-danger btn-sm remove-item">Remove</button>
+          </div>
         </div>
+      </div>
+    </template>
 
-        <!-- Hidden Template -->
-        <template id="empty-form-template">
-            <div class="border rounded p-3 mb-3 bg-light formset-item">
-                <div class="row">
-                    {% for field in formset.empty_form.visible_fields %}
-                    <div class="col-md-4 mb-2">
-                        <label>{{ field.label }}</label>
-                        {{ field.as_widget }}
-                    </div>
-                    {% endfor %}
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="button" class="btn btn-danger btn-sm remove-item">Remove</button>
-                    </div>
-                </div>
-            </div>
-        </template>
-
-        <div class="text-end mb-3">
-            <button type="button" class="btn btn-outline-primary" id="add-item-btn">Add Item</button>
-        </div>
-
-        <div class="text-end mt-2">
-            <strong>Total:</strong> ₹ <span id="grand-total">0.00</span>
-        </div>
+    <div class="text-end mb-3">
+      <button type="button" class="btn btn-outline-primary" id="add-item-btn">+ Add Item</button>
     </div>
 
-    <button type="submit" class="btn btn-success">Submit Invoice</button>
+    <div class="text-end mt-2">
+      <strong>Total:</strong> ₹ <span id="grand-total">0.00</span>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-success">Submit Invoice</button>
 </form>
 
 <script>
-document.addEventListener('change', function (e) {
-    if (e.target.name.endsWith('-product')) {
-        const row = e.target.closest('.formset-item');
-        const productId = e.target.value;
-        const storeId = document.getElementById('id_store')?.value;
-
-        if (productId && storeId) {
-            fetch(`/dashboard/api/get-stock/?product_id=${productId}&store_id=${storeId}`)
-                .then(response => response.json())
-                .then(data => {
-                    row.querySelector('.stock-info')?.remove();
-                    const span = document.createElement('span');
-                    span.className = 'stock-info text-muted small ms-2';
-                    span.innerText = `(In stock: ${data.quantity})`;
-                    e.target.closest('.col-md-4').appendChild(span);
-                });
-        }
-    }
-});
-
 document.addEventListener('DOMContentLoaded', function () {
-    const storeField = document.getElementById('id_store');
-    const totalSpan = document.getElementById('grand-total');
-    const totalInput = document.getElementById('id_grand_total');
-    const formsetPrefix = 'form';
-    const formContainer = document.getElementById('items-container');
-    let formIdx = parseInt(document.getElementById('formset-meta').dataset.formCount || 0);
+  const storeField = document.getElementById('id_store');
+  const totalSpan = document.getElementById('grand-total');
+  const totalInput = document.getElementById('id_grand_total');
+  const formsetPrefix = 'form';
+  const formContainer = document.getElementById('items-container');
+  let formIdx = parseInt(document.getElementById('formset-meta').dataset.formCount || 0);
 
-    function updateTotal() {
-        let total = 0;
-        document.querySelectorAll('.formset-item').forEach(item => {
-            const qty = parseFloat(item.querySelector('[id$="-quantity"]')?.value || 0);
-            const price = parseFloat(item.querySelector('[id$="-unit_price"]')?.value || 0);
-            if (!isNaN(qty) && !isNaN(price)) {
-                total += qty * price;
-            }
-        });
-        totalSpan.textContent = total.toFixed(2);
-        totalInput.value = total.toFixed(2);
-    }
-
-    function attachListeners(scope) {
-        scope.querySelectorAll('input').forEach(input => {
-            input.addEventListener('input', updateTotal);
-        });
-    }
-
-    document.querySelectorAll('.formset-item').forEach(attachListeners);
-
-    document.getElementById('add-item-btn').addEventListener('click', () => {
-        const templateHtml = document.getElementById('empty-form-template').innerHTML;
-        const newHtml = templateHtml.replace(/__prefix__/g, formIdx);
-        const wrapper = document.createElement('div');
-        wrapper.innerHTML = newHtml;
-        const newForm = wrapper.firstElementChild;
-
-        newForm.querySelectorAll('[name]').forEach(el => {
-            el.name = el.name.replace('__prefix__', formIdx);
-        });
-        newForm.querySelectorAll('[id]').forEach(el => {
-            el.id = el.id.replace('__prefix__', formIdx);
-        });
-
-        formContainer.appendChild(newForm);
-        document.getElementById(`id_${formsetPrefix}-TOTAL_FORMS`).value = ++formIdx;
-
-        attachListeners(newForm);
-        updateTotal();
+  function updateTotal() {
+    let total = 0;
+    document.querySelectorAll('.formset-item').forEach(item => {
+      const qty = parseFloat(item.querySelector('[name$="-quantity"]')?.value || 0);
+      const price = parseFloat(item.querySelector('[name$="-unit_price"]')?.value || 0);
+      if (!isNaN(qty) && !isNaN(price)) {
+        total += qty * price;
+      }
     });
+    totalSpan.textContent = total.toFixed(2);
+    totalInput.value = total.toFixed(2);
+  }
 
-    formContainer.addEventListener('click', function (e) {
-        if (e.target.classList.contains('remove-item')) {
-            const item = e.target.closest('.formset-item');
-            if (item) {
-                item.remove();
-                updateTotal();
-                formIdx--;
-                document.getElementById('id_form-TOTAL_FORMS').value = formIdx;
-            }
+  function fetchStock(productId, storeId, row) {
+    const label = row.querySelector('.stock-value');
+    if (!productId || !storeId || !label) return;
+
+    fetch(`/dashboard/api/get-stock/?product_id=${productId}&store_id=${storeId}`)
+      .then(res => res.json())
+      .then(data => {
+        label.textContent = data.quantity ?? '-';
+      })
+      .catch(() => {
+        label.textContent = 'Error';
+      });
+  }
+
+  function fetchExpectedPrice(productId, row) {
+    fetch(`/dashboard/api/get-product-prices/?product_id=${productId}`)
+      .then(res => res.json())
+      .then(data => {
+        const priceField = row.querySelector('[name$="-unit_price"]');
+        if (data.expected_sales_price && priceField) {
+          priceField.value = parseFloat(data.expected_sales_price).toFixed(2);
+          updateTotal();
         }
+      });
+  }
+
+  function attachListeners(row) {
+    row.querySelectorAll('input').forEach(input => {
+      input.addEventListener('input', updateTotal);
     });
 
+    const productField = row.querySelector('[name$="-product"]');
+    if (productField) {
+      productField.addEventListener('change', () => {
+        const productId = productField.value;
+        const storeId = storeField?.value;
+        fetchStock(productId, storeId, row);
+        fetchExpectedPrice(productId, row);
+      });
+
+      if (productField.value) {
+        fetchStock(productField.value, storeField?.value, row);
+        fetchExpectedPrice(productField.value, row);
+      }
+    }
+  }
+
+  document.querySelectorAll('.formset-item').forEach(attachListeners);
+
+  document.getElementById('add-item-btn').addEventListener('click', () => {
+    const html = document.getElementById('empty-form-template').innerHTML.replace(/__prefix__/g, formIdx);
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html;
+    const newForm = wrapper.firstElementChild;
+
+    newForm.querySelectorAll('[name]').forEach(el => {
+      el.name = el.name.replace('__prefix__', formIdx);
+    });
+    newForm.querySelectorAll('[id]').forEach(el => {
+      el.id = el.id.replace('__prefix__', formIdx);
+    });
+
+    formContainer.appendChild(newForm);
+    document.getElementById(`id_${formsetPrefix}-TOTAL_FORMS`).value = ++formIdx;
+
+    attachListeners(newForm);
     updateTotal();
+  });
+
+  formContainer.addEventListener('click', function (e) {
+    if (e.target.classList.contains('remove-item')) {
+      const item = e.target.closest('.formset-item');
+      if (item) {
+        item.remove();
+        updateTotal();
+        formIdx--;
+        document.getElementById('id_form-TOTAL_FORMS').value = formIdx;
+      }
+    }
+  });
+
+  storeField?.addEventListener('change', () => {
+    document.querySelectorAll('.formset-item').forEach(row => {
+      const productField = row.querySelector('[name$="-product"]');
+      if (productField?.value) {
+        fetchStock(productField.value, storeField.value, row);
+      }
+    });
+  });
+
+  updateTotal();
 });
 </script>
 {% endblock %}

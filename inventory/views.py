@@ -889,18 +889,8 @@ def sale_receipt_create(request):
     if request.user.role not in ['sales', 'clerk', 'manager', 'admin'] and not request.user.is_superuser:
         return render(request, 'errors/permission_denied.html', status=403)
 
-    form_data = request.POST.copy()
-    customer_name = form_data.get('customer')
-
-    if customer_name:
-        customer, _ = Customer.objects.get_or_create(
-            name__iexact=customer_name.strip(),
-            defaults={"name": customer_name}
-        )
-        form_data['customer'] = customer.id
-
-    form = SaleForm(form_data or None, request=request)
-    formset = SaleItemFormSet(form_data or None, prefix="form")
+    form = SaleForm(request.POST or None, request=request)
+    formset = SaleItemFormSet(request.POST or None, prefix="form")
 
     if request.method == 'POST' and form.is_valid() and formset.is_valid():
         try:
@@ -982,17 +972,17 @@ def sale_receipt_create(request):
             logger.error(f"❌ Sale receipt failed: {e}")
             messages.error(request, "Something went wrong while recording the receipt.")
 
-    # Send all customers to template for datalist
-    customers = Customer.objects.all()
     return render(request, 'dashboard/sale_receipt_form.html', {
         'form': form,
         'formset': formset,
-        'customers': customers,
     })
+
 
 @login_required
 def invoice_create(request):
-    if request.user.role not in ['sales', 'clerk', 'manager', 'admin'] and not request.user.is_superuser:
+    user = request.user
+
+    if user.role not in ['sales', 'clerk', 'manager', 'admin'] and not user.is_superuser:
         return render(request, 'errors/permission_denied.html', status=403)
 
     form = InvoiceForm(request.POST or None, request=request)
@@ -1003,7 +993,7 @@ def invoice_create(request):
             with transaction.atomic():
                 sale = form.save(commit=False)
                 sale.sale_type = 'invoice'
-                sale.sold_by = request.user
+                sale.sold_by = user
                 sale.payment_status = 'unpaid'
                 sale.save()
 
@@ -1026,10 +1016,10 @@ def invoice_create(request):
                     stock_entry = Stock.objects.filter(product=product, store=store).first()
                     if not stock_entry or stock_entry.quantity < quantity:
                         messages.error(request, f"Not enough stock for {product.name}")
-                        return render(request, 'dashboard/invoice_form.html', {'form': form, 'formset': formset})
+                        raise ValueError("Stock error")
 
                     stock_entry.quantity -= quantity
-                    stock_entry.save()
+                    stock_entry.save(update_fields=["quantity"])
 
                     item = form_item.save(commit=False)
                     item.sale = sale
@@ -1042,9 +1032,6 @@ def invoice_create(request):
                 sale.total_amount = total
                 sale.save(update_fields=["total_amount"])
 
-                from accounting.services import record_transaction_by_slug
-
-                # 🧾 Record accounting entries
                 revenue_txn = record_transaction_by_slug(
                     source_slug='sales-revenue',
                     destination_slug='accounts-receivable',
@@ -1057,8 +1044,8 @@ def invoice_create(request):
                     source_slug='inventory-assets',
                     destination_slug='cost-of-goods-sold',
                     amount=cost_total,
-                    description=f"COGS for {sale.receipt_number}",
-                    store=store
+                    store=store,
+                    description=f"COGS for {sale.receipt_number}"
                 )
 
                 sale.revenue_transaction = revenue_txn
@@ -1067,21 +1054,21 @@ def invoice_create(request):
                 sale.save(update_fields=["revenue_transaction", "cogs_transaction", "transaction"])
 
                 AuditLog.objects.create(
-                    user=request.user,
+                    user=user,
                     action='adjustment',
-                    description=f"{request.user.username} created invoice {sale.receipt_number} for {sale.customer.name}"
+                    description=f"{user.username} created invoice {sale.receipt_number} for {sale.customer.name}"
                 )
 
-                messages.success(request, f"Invoice recorded successfully. Invoice No: {sale.receipt_number}")
+                messages.success(request, f"✅ Invoice No {sale.receipt_number} recorded.")
                 return redirect('inventory:invoice_create')
 
         except Exception as e:
-            logger.error(f"❌ Invoice creation failed: {e}")
+            logger.error(f"Invoice creation failed: {e}")
             messages.error(request, "Something went wrong while saving the invoice.")
 
     return render(request, 'dashboard/invoice_form.html', {
         'form': form,
-        'formset': formset
+        'formset': formset,
     })
 
 
@@ -1095,38 +1082,6 @@ def get_stock_quantity(request):
         return JsonResponse({'quantity': stock.quantity})
     except Stock.DoesNotExist:
         return JsonResponse({'quantity': 0})
-
-
-
-
-# from .models import Product, Stock, Sale, Store, PurchaseOrder
-# from django.utils.timezone import now
-
-@login_required
-def manager_dashboard(request):
-    user_store = getattr(request.user, 'store', None)
-
-    # If user has no assigned store, return empty or warning
-    if not user_store:
-        messages.warning(request, "You are not assigned to a store.")
-        return render(request, 'dashboard/default.html')
-
-    # Get stock and sales filtered to user's store
-    store_stock = Stock.objects.filter(store=user_store)
-    store_sales = Sale.objects.filter(store=user_store)
-    recent_purchase_orders = PurchaseOrder.objects.filter(created_by=request.user).order_by('-date')[:5]
-
-    total_products = Product.objects.count()
-    total_sales_today = store_sales.filter(sale_date__date=now().date()).count()
-
-    return render(request, 'dashboard/manager.html', {
-        'store': user_store,
-        'store_stock': store_stock,
-        'store_sales': store_sales,
-        'recent_purchase_orders': recent_purchase_orders,
-        'total_products': total_products,
-        'total_sales_today': total_sales_today,
-    })
 
 @login_required
 def default_dashboard(request):
@@ -1401,26 +1356,37 @@ def stock_adjustment_create(request):
 
     return render(request, 'dashboard/stock_adjustment_form.html', {'form': form})
 
+from django.http import JsonResponse
+from inventory.models import Product, PurchaseOrderItem
+
+@login_required
+def get_product_prices(request):
+    product_id = request.GET.get('product_id')
+    data = {}
+
+    if product_id:
+        try:
+            latest_item = PurchaseOrderItem.objects.filter(product_id=product_id).latest('id')
+            data['unit_price'] = float(latest_item.unit_price)
+            data['expected_sales_price'] = float(getattr(latest_item, 'expected_sales_price', 0))
+        except PurchaseOrderItem.DoesNotExist:
+            product = Product.objects.filter(id=product_id).first()
+            if product:
+                data['unit_price'] = 0
+                data['expected_sales_price'] = 0
+
+    return JsonResponse(data)
+
 @login_required
 def create_purchase_order(request):
-    ItemFormSet = modelformset_factory(
-        PurchaseOrderItem, 
-        form=PurchaseOrderItemForm, 
-        extra=1, 
-        can_delete=True
-    )
+    ItemFormSet = modelformset_factory(PurchaseOrderItem, form=PurchaseOrderItemForm, extra=1, can_delete=True)
 
     if request.method == 'POST':
         item_formset = ItemFormSet(request.POST, queryset=PurchaseOrderItem.objects.none())
         supplier_name = request.POST.get('supplier')
 
         if item_formset.is_valid() and supplier_name:
-            supplier_name = supplier_name.strip()
-            supplier, _ = Supplier.objects.get_or_create(
-                name__iexact=supplier_name,
-                defaults={"name": supplier_name}
-            )
-
+            supplier, _ = Supplier.objects.get_or_create(name__iexact=supplier_name.strip(), defaults={"name": supplier_name})
             po = PurchaseOrder(supplier=supplier, created_by=request.user)
             po.save()
 
@@ -1440,6 +1406,7 @@ def create_purchase_order(request):
         'item_formset': item_formset,
         'suppliers': Supplier.objects.all(),
     })
+
 
 @require_POST
 @login_required

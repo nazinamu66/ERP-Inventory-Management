@@ -34,15 +34,17 @@ def user_create(request):
     if request.method == 'POST':
         form = UserForm(request.POST, request=request)
         if form.is_valid():
-            user = form.save(commit=False)
-            if request.user.role == 'manager':
-                user.store = request.user.store
-            user.set_password('changeme')  # default password
-            user.save()
+            user = form.save()  # Handles password and stores
+
+            # For managers, enforce store if none was selected
+            if request.user.role == 'manager' and not user.stores.exists():
+                user.stores.set([request.user.store])
+
+            store_names = ", ".join(s.name for s in user.stores.all()) or "N/A"
             AuditLog.objects.create(
                 user=request.user,
                 action='create_user',
-                description=f"{request.user.username} created user {user.username} ({user.role}) for store {user.store.name if user.store else 'N/A'}"
+                description=f"{request.user.username} created user {user.username} ({user.role}) for store(s): {store_names}"
             )
             return redirect('users:user_list')
     else:
@@ -284,19 +286,34 @@ def admin_dashboard(request):
 
     return render(request, 'dashboard/admin.html', context)
 
+from django.db.models import Q
+
 @role_required(['manager'])
 @login_required
 def manager_dashboard(request):
-    store = getattr(request.user, 'store', None)
-    if not store:
+    user = request.user
+    stores = user.stores.all()
+
+    if not stores.exists():
         messages.warning(request, "No store assigned to your account.")
         return render(request, 'dashboard/default.html')
 
     today = now().date()
     start_of_week = today - timedelta(days=6)
 
-    store_sales = Sale.objects.filter(store=store)
-    store_stock = Stock.objects.filter(store=store).select_related('product')
+    selected_store_id = request.GET.get("store")  # store ID or 'all'
+    show_all = selected_store_id == "all"
+
+    if show_all or stores.count() == 1:
+        selected_store = None if show_all else stores.first()
+        store_filter = Q(store__in=stores)
+    else:
+        selected_store = stores.filter(id=selected_store_id).first()
+        store_filter = Q(store=selected_store) if selected_store else Q(store__in=stores)
+
+    # Get data based on store filter
+    store_sales = Sale.objects.filter(store_filter)
+    store_stock = Stock.objects.filter(store_filter).select_related('product')
 
     # KPIs
     total_products = store_stock.values('product').distinct().count()
@@ -305,10 +322,9 @@ def manager_dashboard(request):
     sales_week = store_sales.filter(sale_date__date__gte=start_of_week).count()
     total_revenue = store_sales.aggregate(Sum('total_amount'))['total_amount__sum'] or 0
 
-    # Top 5 products
     top_products = (
         SaleItem.objects
-        .filter(sale__store=store)
+        .filter(sale__in=store_sales)
         .values('product__name')
         .annotate(qty=Sum('quantity'))
         .order_by('-qty')[:5]
@@ -316,7 +332,6 @@ def manager_dashboard(request):
     product_labels = [p['product__name'] for p in top_products]
     product_values = [p['qty'] for p in top_products]
 
-    # Revenue by day
     revenue_by_day = (
         store_sales
         .annotate(day=TruncDate('sale_date'))
@@ -329,7 +344,9 @@ def manager_dashboard(request):
     revenue_values = [day_map.get(start_of_week + timedelta(days=i), 0) for i in range(7)]
 
     return render(request, 'dashboard/manager.html', {
-        'store': store,
+        'stores': stores,
+        'selected_store': selected_store,
+        'show_all': show_all,
         'total_products': total_products,
         'total_stock': total_stock,
         'sales_today': sales_today,
@@ -339,7 +356,7 @@ def manager_dashboard(request):
         'product_values': json.dumps(product_values),
         'revenue_labels': json.dumps(revenue_labels),
         'revenue_values': json.dumps(revenue_values),
-        'recent_purchase_orders': PurchaseOrder.objects.filter(created_by=request.user).order_by('-date')[:5],
+        'recent_purchase_orders': PurchaseOrder.objects.filter(created_by=user).order_by('-date')[:5],
     })
 
 from django.contrib import messages

@@ -8,46 +8,45 @@
   {% csrf_token %}
   {{ formset.management_form }}
   <input type="hidden" name="grand_total" id="id_grand_total" value="0.00">
-
   <div id="formset-meta" data-form-count="{{ formset.total_form_count|default:0 }}"></div>
 
   <!-- === Receipt Info === -->
   <div class="card mb-4 p-3">
     <h5>Receipt Info</h5>
 
-    <!-- Receipt Number (read-only) -->
+    <!-- Receipt Number -->
     <div class="mb-3">
       <label>Receipt Number</label>
       <input type="text" class="form-control" 
              value="{{ form.instance.receipt_number|default:'(Will be generated after save)' }}" readonly>
     </div>
 
-    <!-- Customer Input with Datalist -->
+    <!-- Add Customer & Customer Input -->
     <a href="{% url 'inventory:customer_create' %}?next={% url 'inventory:sale_receipt_create' %}" class="btn btn-sm btn-outline-primary mb-2">+ Add Customer</a>
     <div class="mb-3">
-      <label for="customer">Customer</label>
-      <input list="customer-options" name="customer" id="customer" class="form-control" value="{{ request.POST.customer }}">
-      <datalist id="customer-options">
-        {% for customer in customers %}
-          <option value="{{ customer.name }}">
-        {% endfor %}
-      </datalist>
-    </div>
+      <div class="mb-3">
+        <label for="{{ form.customer.id_for_label }}">{{ form.customer.label }}</label>
+        {{ form.customer }}
+        {% if form.customer.errors %}
+          <div class="text-danger">{{ form.customer.errors }}</div>
+        {% endif %}
+      </div>
+          </div>
 
-    <!-- Other Sale Fields -->
-    {% for field in form.visible_fields %}
-  {% if field.name != 'customer' and field.name != 'bank_account' %}
-    <div class="mb-3">
-      <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-      {{ field }}
-      {% if field.errors %}
-      <div class="text-danger">{{ field.errors }}</div>
+    <!-- Other Form Fields Except Customer & Bank -->
+    {% for field in form %}
+      {% if field.name != 'customer' and field.name != 'bank_account' %}
+      <div class="mb-3">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.errors %}
+        <div class="text-danger">{{ field.errors }}</div>
+        {% endif %}
+      </div>
       {% endif %}
-    </div>
-  {% endif %}
-{% endfor %}
+    {% endfor %}
 
-    <!-- Bank Account (conditionally shown) -->
+    <!-- Bank Field (shown conditionally via JS) -->
     <div class="mb-3" id="bank-wrapper" style="display: none;">
       <label for="id_bank_account">Bank</label>
       {{ form.bank_account }}
@@ -57,35 +56,34 @@
     </div>
   </div>
 
-  <!-- === Sale Items === -->
+  <!-- === Items === -->
   <div class="card mb-4 p-3">
     <h5>Items</h5>
-
     <div id="items-container">
       {% for item_form in formset %}
-        <div class="border rounded p-3 mb-3 bg-light formset-item">
-          <div class="row">
-            {% for field in item_form.visible_fields %}
-              <div class="col-md-4 mb-2">
-                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}
-                <div class="text-danger">{{ field.errors }}</div>
-                {% endif %}
-                {% if field.name == 'product' %}
-                  <div class="text-muted small stock-label">Stock: <span class="stock-value">-</span></div>
-                {% endif %}
-              </div>
-            {% endfor %}
-            <div class="col-md-2 d-flex align-items-end">
-              <button type="button" class="btn btn-danger btn-sm remove-item">Remove</button>
-            </div>
+      <div class="border rounded p-3 mb-3 bg-light formset-item">
+        <div class="row">
+          {% for field in item_form.visible_fields %}
+          <div class="col-md-4 mb-2">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}
+              <div class="text-danger">{{ field.errors }}</div>
+            {% endif %}
+            {% if field.name == 'product' %}
+              <div class="text-muted small stock-label">Stock: <span class="stock-value">-</span></div>
+            {% endif %}
+          </div>
+          {% endfor %}
+          <div class="col-md-2 d-flex align-items-end">
+            <button type="button" class="btn btn-danger btn-sm remove-item">Remove</button>
           </div>
         </div>
+      </div>
       {% endfor %}
     </div>
 
-    <!-- Empty Form Template -->
+    <!-- Template for New Items -->
     <template id="empty-form-template">
       <div class="border rounded p-3 mb-3 bg-light formset-item">
         <div class="row">
@@ -117,7 +115,7 @@
   <button type="submit" class="btn btn-success">Submit Receipt</button>
 </form>
 
-<!-- === JS === -->
+<!-- === JavaScript === -->
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const paymentMethod = document.getElementById('id_payment_method');
@@ -147,8 +145,8 @@ document.addEventListener('DOMContentLoaded', function () {
   function updateTotal() {
     let total = 0;
     document.querySelectorAll('.formset-item').forEach(item => {
-      const qty = parseFloat(item.querySelector('[id$="-quantity"]')?.value || 0);
-      const price = parseFloat(item.querySelector('[id$="-unit_price"]')?.value || 0);
+      const qty = parseFloat(item.querySelector('[name$="-quantity"]')?.value || 0);
+      const price = parseFloat(item.querySelector('[name$="-unit_price"]')?.value || 0);
       if (!isNaN(qty) && !isNaN(price)) {
         total += qty * price;
       }
@@ -157,33 +155,44 @@ document.addEventListener('DOMContentLoaded', function () {
     totalInput.value = total.toFixed(2);
   }
 
-  function fetchStock(productField) {
-    const productId = productField.value;
-    const storeId = storeField?.value;
-    const stockLabel = productField.closest('.formset-item')?.querySelector('.stock-value');
-    if (!productId || !storeId || !stockLabel) {
-      if (stockLabel) stockLabel.textContent = '-';
-      return;
-    }
-
+  function fetchStock(productId, storeId, row) {
+    const stockLabel = row.querySelector('.stock-value');
+    if (!productId || !storeId || !stockLabel) return;
     fetch(`/dashboard/api/get-stock/?product_id=${productId}&store_id=${storeId}`)
       .then(res => res.json())
+      .then(data => stockLabel.textContent = data.quantity ?? '-')
+      .catch(() => stockLabel.textContent = 'Error');
+  }
+
+  function fetchExpectedPrice(productId, row) {
+    if (!productId) return;
+    fetch(`/dashboard/api/get-product-prices/?product_id=${productId}`)
+      .then(res => res.json())
       .then(data => {
-        stockLabel.textContent = data.quantity ?? '-';
-      })
-      .catch(() => {
-        stockLabel.textContent = 'Error';
+        const priceField = row.querySelector('[name$="-unit_price"]');
+        if (data.expected_sales_price && priceField) {
+          priceField.value = parseFloat(data.expected_sales_price).toFixed(2);
+          updateTotal();
+        }
       });
   }
 
-  function attachListeners(scope) {
-    scope.querySelectorAll('input').forEach(input => {
-      input.addEventListener('input', updateTotal);
-    });
-    scope.querySelectorAll('[id$="-product"]').forEach(productField => {
-      productField.addEventListener('change', () => fetchStock(productField));
-      if (productField.value) fetchStock(productField);
-    });
+  function attachListeners(row) {
+    row.querySelectorAll('input').forEach(input => input.addEventListener('input', updateTotal));
+    const productField = row.querySelector('[name$="-product"]');
+    if (productField) {
+      productField.addEventListener('change', () => {
+        const productId = productField.value;
+        const storeId = storeField?.value;
+        fetchStock(productId, storeId, row);
+        fetchExpectedPrice(productId, row);
+      });
+
+      if (productField.value) {
+        fetchStock(productField.value, storeField?.value, row);
+        fetchExpectedPrice(productField.value, row);
+      }
+    }
   }
 
   document.querySelectorAll('.formset-item').forEach(attachListeners);
@@ -204,7 +213,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     formContainer.appendChild(newForm);
     document.getElementById(`id_${formsetPrefix}-TOTAL_FORMS`).value = ++formIdx;
-
     attachListeners(newForm);
     updateTotal();
   });
@@ -222,7 +230,12 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   storeField?.addEventListener('change', () => {
-    document.querySelectorAll('[id^="id_form-"][id$="-product"]').forEach(fetchStock);
+    document.querySelectorAll('.formset-item').forEach(row => {
+      const productField = row.querySelector('[name$="-product"]');
+      if (productField?.value) {
+        fetchStock(productField.value, storeField.value, row);
+      }
+    });
   });
 
   updateTotal();
