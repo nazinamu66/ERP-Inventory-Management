@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", function () {
         data: {
             labels: salesData.labels,
             datasets: [{
-                label: "Sales (₹)",
+                label: "Sales (₦)",
                 data: salesData.values,
                 fill: false,
                 borderColor: "rgb(75, 192, 192)",

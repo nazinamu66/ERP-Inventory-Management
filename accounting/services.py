@@ -6,16 +6,34 @@ from accounting.models import SupplierLedger
 
 
 
-# System-defined accounts (slugs will be used for identification)
-DEFAULT_ACCOUNTS = [
-    {"name": "Undeposited Funds", "slug": "undeposited-funds", "type": "asset"},
-    {"name": "Sales Revenue", "slug": "sales-revenue", "type": "income"},
-    {"name": "Inventory Asset", "slug": "inventory-assets", "type": "asset"},
-    {"name": "Cost of Goods Sold", "slug": "cost-of-goods-sold", "type": "expense"},
-    {"name": "Accounts Receivable", "slug": "accounts-receivable", "type": "asset"},
-    {"name": "Accounts Payable", "slug": "accounts-payable", "type": "liability"},
-]
 
+# System-defined accounts (slugs will be used for identification)
+# accounting/constants.py or relevant config module
+
+ASSET = "asset"
+INCOME = "income"
+EXPENSE = "expense"
+LIABILITY = "liability"
+
+DEFAULT_ACCOUNTS = [
+    # 💰 Assets
+    {"name": "Undeposited Funds", "slug": "undeposited-funds", "type": ASSET},
+    {"name": "Inventory Asset", "slug": "inventory-assets", "type": ASSET},
+    {"name": "Transit Stock", "slug": "transit-stock", "type": ASSET},  # ✅ NEW: for inter-store transfers
+    {"name": "Accounts Receivable", "slug": "accounts-receivable", "type": ASSET},
+    {"name": "Opening Balance", "slug": "opening-balance", "type": ASSET},
+
+    # 📈 Income
+    {"name": "Sales Revenue", "slug": "sales-revenue", "type": INCOME},
+    {"name": "Inventory Adjustment Gain", "slug": "inventory-adjustment-gain", "type": INCOME},
+
+    # 📉 Expenses
+    {"name": "Cost of Goods Sold", "slug": "cost-of-goods-sold", "type": EXPENSE},
+    {"name": "Inventory Adjustment Loss", "slug": "inventory-adjustment-loss", "type": EXPENSE},
+
+    # 📊 Liabilities
+    {"name": "Accounts Payable", "slug": "accounts-payable", "type": LIABILITY},
+]
 
 def create_system_accounts():
     """
@@ -40,13 +58,12 @@ def create_system_accounts():
     return created
 
 
-def calculate_account_balances(store=None):
+def calculate_account_balances(store=None, stores=None):
     """
     Calculates account balances.
-    If a store is provided, only considers transactions from that store.
-
-    - Assets & Expenses: opening + debits - credits
-    - Liabilities, Income, Equity: opening + credits - debits
+    - If `store` is provided, filters by that store.
+    - If `stores` (a queryset or list) is provided, filters by those stores.
+    - Otherwise, includes all transactions.
     """
     balances = {}
     accounts = Account.objects.all()
@@ -54,7 +71,9 @@ def calculate_account_balances(store=None):
     for account in accounts:
         lines = TransactionLine.objects.filter(account=account)
 
-        if store:
+        if stores:
+            lines = lines.filter(transaction__store__in=stores)
+        elif store:
             lines = lines.filter(transaction__store=store)
 
         debit_total = lines.aggregate(debit_sum=Sum('debit'))['debit_sum'] or 0
@@ -62,10 +81,8 @@ def calculate_account_balances(store=None):
 
         if account.type in ['asset', 'expense']:
             balance = account.opening_balance + debit_total - credit_total
-        elif account.type in ['liability', 'income', 'equity']:
+        else:  # liabilities, income, equity
             balance = account.opening_balance + credit_total - debit_total
-        else:
-            balance = account.opening_balance + debit_total - credit_total
 
         balances[account] = balance
 

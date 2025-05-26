@@ -5,14 +5,34 @@
 {% block content %}
 <h3>{{ supplier.name }} – Ledger</h3>
 
+<div class="mb-3">
+    <a id="download-pdf-btn" href="#" class="btn btn-danger btn-sm">
+        📄 Download PDF
+    </a>
+</div>
+<form method="get" class="row g-2 mb-3">
+    <div class="col-auto">
+        <label for="from">From</label>
+        <input type="date" name="from" id="from" value="{{ request.GET.from }}" class="form-control">
+    </div>
+    <div class="col-auto">
+        <label for="to">To</label>
+        <input type="date" name="to" id="to" value="{{ request.GET.to }}" class="form-control">
+    </div>
+    <div class="col-auto d-flex align-items-end">
+        <button type="submit" class="btn btn-primary">Apply Filter</button>
+    </div>
+</form>
+
+
 <table class="table table-bordered table-striped">
     <thead>
         <tr>
             <th>Date</th>
             <th>Type</th>
-            <th>Debit (₹)</th>
-            <th>Credit (₹)</th>
-            <th>Balance (₹)</th>
+            <th>Debit (₦)</th>
+            <th>Credit (₦)</th>
+            <th>Balance (₦)</th>
             <th>Note</th>
         </tr>
     </thead>
@@ -41,7 +61,7 @@
                 <td colspan="4"><strong>Final Balance</strong></td>
                 <td colspan="2">
                     <strong>
-                        ₹{{ final_balance|floatformat:2 }}
+                        ₦{{ final_balance|floatformat:2 }}
                         {% if final_balance > 0 %}
                             (You Owe Supplier)
                         {% elif final_balance < 0 %}
@@ -59,4 +79,31 @@
 
     
 </table>
+<a href="{% url 'accounting:supplier_balances' %}" class="btn btn-secondary mt-3">
+    ← Back to Supplier Balances
+</a>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const pdfBtn = document.getElementById('download-pdf-btn');
+        const fromInput = document.querySelector('input[name="from"]');
+        const toInput = document.querySelector('input[name="to"]');
+    
+        function updatePdfUrl() {
+            const params = new URLSearchParams();
+            if (fromInput?.value) params.append('from', fromInput.value);
+            if (toInput?.value) params.append('to', toInput.value);
+    
+            const baseUrl = `{% url 'accounting:supplier_ledger_pdf' supplier.id %}`;
+            pdfBtn.href = `${baseUrl}?${params.toString()}`;
+        }
+    
+        [fromInput, toInput].forEach(input => {
+            if (input) input.addEventListener('change', updatePdfUrl);
+        });
+    
+        updatePdfUrl(); // Initialize on page load
+    });
+    </script>
+    
+
 {% endblock %}

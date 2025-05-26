@@ -88,17 +88,43 @@ class Supplier(models.Model):
         return self.name
 
 
+from django.core.exceptions import ValidationError
+
 class Product(models.Model):
     name = models.CharField(max_length=200)
-    sku = models.CharField(max_length=100, unique=True)
+    sku = models.CharField(max_length=100, unique=True, blank=True)
     description = models.TextField(blank=True)
     category = models.CharField(max_length=100, blank=True)
-    unit = models.CharField(max_length=20, default='pcs')  # e.g. pcs, kg, litres
+    unit = models.CharField(max_length=20, default='pcs')
     quantity = models.PositiveBigIntegerField(default=0)
     total_quantity = models.PositiveBigIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
+    reorder_level = models.PositiveIntegerField(default=0)
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='created_products'
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='updated_products'
+    )
+
+    def clean(self):
+        # ✅ Check for another active product with the same name
+        conflict = Product.objects.filter(name__iexact=self.name.strip(), is_active=True)
+        if self.pk:
+            conflict = conflict.exclude(pk=self.pk)
+
+        if conflict.exists():
+            raise ValidationError(f"A product named '{self.name}' already exists and is active.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()  # 🧼 Triggers clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.name} ({self.sku})"
@@ -108,16 +134,23 @@ class Stock(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
     quantity = models.IntegerField(default=0)
-    cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)  # ✅ Add this line
-    last_updated = models.DateTimeField(auto_now=True)  # ✅ auto update
+    cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    last_updated = models.DateTimeField(auto_now=True)
 
+    # ✅ NEW: Link to accounting transaction (for reversals)
+    transaction = models.ForeignKey(
+        'accounting.Transaction',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text="Reference to the initial inventory transaction"
+    )
 
     class Meta:
         unique_together = ('product', 'store')
 
     def __str__(self):
         return f"{self.product.name} at {self.store.name}"
-
 
 
 class StockAdjustment(models.Model):
@@ -265,6 +298,7 @@ class SaleItem(models.Model):
 
 # models.py
 
+from django.apps import apps
 class StockTransfer(models.Model):
     STATUS_CHOICES = [
         ('requested', 'Requested'),
@@ -277,11 +311,31 @@ class StockTransfer(models.Model):
     source_store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='transfers_out')
     destination_store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='transfers_in')
     quantity = models.PositiveIntegerField()
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='created_transfers'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='requested')
 
+    # ✅ ADD THIS FIELD
+    # Still in inventory/models.py
+
+    transfer_transaction = models.ForeignKey(
+        'accounting.Transaction',  # ✅ Use a string instead of importing directly
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='stock_transfers',
+        help_text="Linked transaction for accounting purposes"
+    )
+
     def __str__(self):
         return f"{self.quantity} x {self.product.name} from {self.source_store.name} to {self.destination_store.name}"
+
 
 
 class PurchaseOrder(models.Model):

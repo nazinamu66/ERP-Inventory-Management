@@ -2,14 +2,21 @@ from django.contrib import admin
 from django.db.models import Sum
 from .models import Account, Transaction
 from .services import calculate_account_balances
-
 from .models import SupplierPayment
 admin.site.register(SupplierPayment)
-
 from django.contrib import admin
 from .models import SupplierLedger
-
 from .models import ExpenseEntry
+from .models import Notification
+
+
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ['user', 'short_message', 'is_read', 'created_at']
+    list_filter = ['is_read', 'created_at']
+    search_fields = ['message', 'user__username']
 
 
 @admin.register(SupplierLedger)

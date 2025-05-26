@@ -48,7 +48,7 @@
     <div class="card border-success mb-3">
       <div class="card-header bg-success text-white">Revenue</div>
       <div class="card-body">
-        <h5 class="card-title">₹{{ revenue|floatformat:2 }}</h5>
+        <h5 class="card-title">₦{{ revenue|floatformat:2 }}</h5>
       </div>
     </div>
   </div>
@@ -57,7 +57,7 @@
     <div class="card border-danger mb-3">
       <div class="card-header bg-danger text-white">Cost of Goods Sold (COGS)</div>
       <div class="card-body">
-        <h5 class="card-title">₹{{ cogs|floatformat:2 }}</h5>
+        <h5 class="card-title">₦{{ cogs|floatformat:2 }}</h5>
       </div>
     </div>
   </div>
@@ -68,7 +68,7 @@
     <div class="card border-info mb-3">
       <div class="card-header bg-info text-white">Gross Profit</div>
       <div class="card-body">
-        <h5 class="card-title">₹{{ gross_profit|floatformat:2 }}</h5>
+        <h5 class="card-title">₦{{ gross_profit|floatformat:2 }}</h5>
       </div>
     </div>
   </div>
@@ -77,7 +77,7 @@
     <div class="card border-warning mb-3">
       <div class="card-header bg-warning text-dark">Expenses</div>
       <div class="card-body">
-        <h5 class="card-title">₹{{ expenses|floatformat:2 }}</h5>
+        <h5 class="card-title">₦{{ expenses|floatformat:2 }}</h5>
       </div>
     </div>
   </div>
@@ -89,7 +89,7 @@
       <div class="card-header bg-primary text-white">Net Profit</div>
       <div class="card-body">
         <h4 class="card-title {% if net_profit < 0 %}text-danger{% else %}text-success{% endif %}">
-          ₹{{ net_profit|floatformat:2 }}
+          ₦{{ net_profit|floatformat:2 }}
         </h4>
       </div>
     </div>

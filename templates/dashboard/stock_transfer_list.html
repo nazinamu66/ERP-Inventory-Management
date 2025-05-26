@@ -25,24 +25,19 @@
                             <td>{{ transfer.source_store }}</td>
                             <td>{{ transfer.destination_store }}</td>
                             <td>{{ transfer.quantity }}</td>
-                            <td>{{ transfer.get_status_display }}</td> <!-- 👈 Shows "Requested" -->
+                            <td>{{ transfer.get_status_display }} </td>
                             <td>{{ transfer.created_at|date:"Y-m-d H:i" }}</td>
-                        </tr>
-                        {% if transfer.status == 'requested' and request.user.role == 'admin' %}
-                        <tr>
-                            <td colspan="6">
-                                <form action="{% url 'inventory:approve_transfer' transfer.id %}" method="post" style="display:inline;">
-                                    {% csrf_token %}
-                                    <button class="btn btn-sm btn-success">Approve</button>
-                                </form>
-                                <form action="{% url 'inventory:reject_transfer' transfer.id %}" method="post" style="display:inline;">
-                                    {% csrf_token %}
-                                    <button class="btn btn-sm btn-danger">Reject</button>
-                                </form>
+                            <td><a href="{% url 'inventory:transfer_slip_pdf' transfer.id %}" class="btn btn-sm btn-secondary" target="_blank">📄 PDF</a>
                             </td>
                         </tr>
+
+                        {% if transfer.status == 'requested' and request.user.is_superuser %}
+                            {% include 'inventory/partials/transfer_actions.html' with transfer=transfer %}
+                        {% elif transfer.status == 'requested' and request.user.can_approve_transfers and transfer.destination_store.id in user_store_ids %}
+                            {% include 'inventory/partials/transfer_actions.html' with transfer=transfer %}
                         {% endif %}
                         {% endfor %}
+
                     </tbody>
                     
 

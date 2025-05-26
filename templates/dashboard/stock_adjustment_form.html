@@ -1,14 +1,85 @@
 {% extends "dashboard/base.html" %}
-
 {% block title %}Adjust Stock{% endblock %}
 
 {% block content %}
-  <div class="container mt-4">
-    <h2>Stock Adjustment</h2>
-    <form method="post" action="{% url 'inventory:stock_adjustment_create' %}">
-        {% csrf_token %}
-      {{ form.as_p }}
-      <button type="submit" class="btn btn-primary">Submit Adjustment</button>
-    </form>
-  </div>
+<div class="container mt-4">
+  <h2>Stock Adjustment</h2>
+  <form method="post" action="{% url 'inventory:stock_adjustment_create' %}">
+    {% csrf_token %}
+
+    <!-- Store -->
+    <div class="mb-3">
+      {{ form.store.label_tag }} {{ form.store }}
+      {% if form.store.errors %}
+        <div class="text-danger">{{ form.store.errors }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Product -->
+    <div class="mb-3">
+      {{ form.product.label_tag }} {{ form.product }}
+      {% if form.product.errors %}
+        <div class="text-danger">{{ form.product.errors }}</div>
+      {% endif %}
+      <div class="small text-muted mt-1">Available Quantity: <strong id="stock-qty">-</strong></div>
+    </div>
+
+    <!-- Adjustment Type -->
+    <div class="mb-3">
+      {{ form.adjustment_type.label_tag }} {{ form.adjustment_type }}
+      {% if form.adjustment_type.errors %}
+        <div class="text-danger">{{ form.adjustment_type.errors }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Quantity -->
+    <div class="mb-3">
+      {{ form.quantity.label_tag }} {{ form.quantity }}
+      {% if form.quantity.errors %}
+        <div class="text-danger">{{ form.quantity.errors }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Reason -->
+    <div class="mb-3">
+      {{ form.reason.label_tag }} {{ form.reason }}
+      {% if form.reason.errors %}
+        <div class="text-danger">{{ form.reason.errors }}</div>
+      {% endif %}
+    </div>
+
+    <button type="submit" class="btn btn-primary">Submit Adjustment</button>
+  </form>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const storeField = document.getElementById("id_store");
+  const productField = document.getElementById("id_product");
+  const stockQtyDisplay = document.getElementById("stock-qty");
+
+  function updateStockQuantity() {
+    const storeId = storeField.value;
+    const productId = productField.value;
+
+    if (!storeId || !productId) {
+      stockQtyDisplay.textContent = "-";
+      return;
+    }
+
+    fetch(`/dashboard/api/get-stock/?product_id=${productId}&store_id=${storeId}`)
+      .then(res => res.json())
+      .then(data => {
+        stockQtyDisplay.textContent = data.quantity ?? "-";
+      })
+      .catch(() => stockQtyDisplay.textContent = "Error");
+  }
+
+  storeField?.addEventListener("change", updateStockQuantity);
+  productField?.addEventListener("change", updateStockQuantity);
+
+  // Initial load
+  updateStockQuantity();
+});
+</script>
 {% endblock %}

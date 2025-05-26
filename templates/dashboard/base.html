@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
     <title>{% block title %}Dashboard{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
@@ -40,7 +42,15 @@
 
             <!-- Dashboard -->
             <a class="nav-link" href="{% url 'inventory:dashboard' %}">Dashboard</a>
-
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'accounting:notifications_list' %}">
+                    🔔 Notifications
+                  {% if request.user.notifications_unread_count %}
+                    <span class="badge bg-danger">{{ request.user.notifications_unread_count }}</span>
+                    {% endif %}
+                </a>
+              </li>
+              
             <!-- Inventory -->
             <a class="nav-link" data-bs-toggle="collapse" href="#inventoryMenu">Inventory</a>
             <div class="collapse" id="inventoryMenu">
@@ -48,6 +58,8 @@
                     <a class="nav-link" href="{% url 'inventory:product_list' %}">Products</a>
                     <a class="nav-link" href="{% url 'inventory:stock_list' %}">Stock Overview</a>
                     <a class="nav-link" href="{% url 'inventory:inventory_report' %}">Inventory Report</a>
+                    <a class="nav-link" href="{% url 'inventory:inventory_aging_report' %}">📊 Inventory Aging</a>
+
                 </div>
             </div>
 
@@ -60,7 +72,7 @@
                             <a class="nav-link" href="{% url 'inventory:stock_adjustment_create' %}">Adjust Stock</a>
                         {% endif %}
                         {% if request.user.can_transfer_stock or request.user.is_superuser %}
-                            <a class="nav-link" href="{% url 'inventory:stock_transfer' %}">Transfer Stock</a>
+                            <a class="nav-link" href="{% url 'inventory:stock_transfer_create' %}">Transfer Stock</a>
                         {% endif %}
                         {% if request.user.can_view_transfers or request.user.is_superuser %}
                             <a class="nav-link" href="{% url 'inventory:stock_transfer_list' %}">Transfer History</a>
@@ -91,6 +103,7 @@
                         <a class="nav-link" href="{% url 'inventory:create_purchase_order' %}">New Purchase Order</a>
                         <a class="nav-link" href="{% url 'inventory:purchase_order_list' %}">Purchase Orders</a>
                         <a class="nav-link" href="{% url 'inventory:supplier_list' %}">Suppliers</a>
+                        <a class="nav-link" href="{% url 'accounting:supplier_balances' %}">Supplier Balances</a>
                     </div>
                 </div>
             {% endif %}
@@ -108,9 +121,11 @@
                     <a class="nav-link" href="{% url 'accounting:expense_history' %}"> Expense History</a>
                     <a class="nav-link" href="{% url 'accounting:profit_loss_report' %}">📊 Profit & Loss</a>
                     <a class="nav-link" href="{% url 'accounting:profit_loss_detail_report' %}">P&L Detail</a>
-
-
-                    
+                    <a class="nav-link" href="{% url 'accounting:trial_balance' %}"> 🧾 Trial Balance </a>
+                    <a class="nav-link" href="{% url 'accounting:general_ledger' %}">📘 General Ledger</a>
+                    <a class="nav-link" href="{% url 'accounting:balance_sheet' %}">📊 Balance Sheet</a> 
+                    <a class="nav-link" href="{% url 'accounting:customer_aging_report' %}">Customer Aging Report</a>
+                   
                 </div>
             </div>
             <!-- Accounting Menu -->

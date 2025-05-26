@@ -5,6 +5,16 @@
 
 <h3>Welcome, {{ request.user.username }}</h3>
 
+<form method="get" class="mb-3">
+    <label for="store">Store:</label>
+    <select name="store" onchange="this.form.submit()" class="form-select w-auto d-inline">
+      <option value="all" {% if show_all %}selected{% endif %}>All Stores</option>
+      {% for s in stores %}
+        <option value="{{ s.id }}" {% if selected_store and s.id == selected_store.id %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
 <div class="row mb-4">
     <div class="col-md-2">
         <div class="card text-white bg-primary">
@@ -42,7 +52,7 @@
         <div class="card text-white bg-secondary">
             <div class="card-body">
                 <h6>Total Revenue</h6>
-                <p class="fs-5">₹{{ total_revenue|floatformat:2 }}</p>
+                <p class="fs-5">₦{{ total_revenue|floatformat:2 }}</p>
             </div>
         </div>
     </div>
@@ -50,7 +60,7 @@
         <div class="card text-white bg-info">
             <div class="card-body">
                 <h6>Net Profit</h6>
-                <p class="fs-5">₹{{ net_profit|floatformat:2 }}</p>
+                <p class="fs-5">₦{{ net_profit|floatformat:2 }}</p>
             </div>
         </div>
     </div>
@@ -143,7 +153,7 @@
         data: {
             labels: {{ chart_labels|safe }},
             datasets: [{
-                label: "Sales (₹)",
+                label: "Sales (₦)",
                 data: {{ chart_values|safe }},
                 borderColor: "rgb(75, 192, 192)",
                 backgroundColor: "rgba(75, 192, 192, 0.2)",
@@ -176,7 +186,7 @@
         data: {
             labels: {{ store_labels|safe }},
             datasets: [{
-                label: "Sales (₹)",
+                label: "Sales (₦)",
                 data: {{ store_values|safe }},
                 backgroundColor: "rgba(255, 159, 64, 0.5)",
                 borderColor: "rgb(255, 159, 64)",
@@ -192,7 +202,7 @@ new Chart(document.getElementById("revenue-over-time").getContext("2d"), {
     data: {
         labels: {{ revenue_labels|safe }},
         datasets: [{
-            label: "Revenue (₹)",
+            label: "Revenue (₦)",
             data: {{ revenue_values|safe }},
             backgroundColor: "rgba(153, 102, 255, 0.5)",
             borderColor: "rgb(153, 102, 255)",
@@ -216,7 +226,7 @@ const profitLabels = {{ profit_labels|safe }};
         data: {
             labels: profitLabels,
             datasets: [{
-                label: "Profit (₹)",
+                label: "Profit (₦)",
                 data: profitValues,
                 borderColor: "rgb(255, 99, 132)",
                 backgroundColor: "rgba(255, 99, 132, 0.2)",

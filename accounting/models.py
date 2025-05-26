@@ -90,22 +90,35 @@ class CustomerPayment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.customer.name} paid ₹{self.amount}"
+        return f"{self.customer.name} paid ₦{self.amount}"
+
+from decimal import Decimal
 
 class SupplierPayment(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
-    account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True)  # Bank or cash account
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    payment_date = models.DateField(default=now)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE)
+    
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2
+    )
+    
+    payment_date = models.DateField()
     note = models.TextField(blank=True, null=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+
+    transaction = models.ForeignKey(
+        'accounting.Transaction',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL
+    )
 
     class Meta:
         ordering = ['-payment_date']
 
     def __str__(self):
         return f"Payment of {self.amount} to {self.supplier.name} on {self.payment_date}"
-    
 
 
 class ExpenseEntry(models.Model):
@@ -132,7 +145,30 @@ class ExpenseEntry(models.Model):
     )
 
     def __str__(self):
-        return f"{self.expense_account.name} - ₹{self.amount}"
+        return f"{self.expense_account.name} - ₦{self.amount}"
 
 
- 
+# accounting/models.py
+
+from django.conf import settings
+from django.db import models
+
+class Notification(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications"  # 🔧 Add this line
+    )
+    message = models.TextField()
+    url = models.URLField(blank=True, null=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"🔔 Notification for {self.user.username}"
+
+    def short_message(self):
+        return self.message[:50] + ('...' if len(self.message) > 50 else '')

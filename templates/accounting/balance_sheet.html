@@ -1,0 +1,67 @@
+{% extends 'dashboard/base.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h3>📊 Balance Sheet</h3>
+  <form method="get" class="mb-3 row g-2">
+    <div class="col-md-4">
+      <label>Store:</label>
+      <select name="store" class="form-select">
+        {% for s in stores %}
+          <option value="{{ s.id }}" {% if s.id == selected_store_id %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label>As of date:</label>
+      <input type="date" name="date" value="{{ as_of_date }}" class="form-control">
+    </div>
+    <div class="col-md-2 d-flex align-items-end">
+      <button class="btn btn-primary">📄 View</button>
+    </div>
+  </form>
+
+  <div class="row">
+    <div class="col-md-6">
+      <h5>Assets</h5>
+      <ul class="list-group mb-3">
+        {% for a in assets %}
+          <li class="list-group-item d-flex justify-content-between">
+            <span>{{ a.name }}</span>
+            <strong>{{ a.balance|floatformat:2 }}</strong>
+          </li>
+        {% endfor %}
+        <li class="list-group-item active d-flex justify-content-between">
+          <span>Total Assets</span>
+          <strong>{{ totals.asset|floatformat:2 }}</strong>
+        </li>
+      </ul>
+    </div>
+
+    <div class="col-md-6">
+      <h5>Liabilities & Equity</h5>
+      <ul class="list-group mb-3">
+        {% for l in liabilities %}
+          <li class="list-group-item d-flex justify-content-between">
+            <span>{{ l.name }}</span>
+            <strong>{{ l.balance|floatformat:2 }}</strong>
+          </li>
+        {% endfor %}
+        {% for e in equity %}
+          <li class="list-group-item d-flex justify-content-between">
+            <span>{{ e.name }}</span>
+            <strong>{{ e.balance|floatformat:2 }}</strong>
+          </li>
+        {% endfor %}
+        <li class="list-group-item active d-flex justify-content-between">
+          <span>Total Liabilities + Equity</span>
+          <strong>{{ totals.liability|add:totals.equity|floatformat:2 }}</strong>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+<a href="{% url 'accounting:balance_sheet_pdf' %}?store={{ selected_store_id }}" class="btn btn-sm btn-outline-secondary float-end">
+    ⬇️ Download PDF
+</a>
+
+{% endblock %}

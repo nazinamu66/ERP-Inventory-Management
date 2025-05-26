@@ -29,7 +29,7 @@ class Command(BaseCommand):
                         kept = entry
                     else:
                         self.stdout.write(
-                            f"  ❌ Deleting duplicate: {entry.entry_type} ₹{entry.amount} for {entry.supplier.name}"
+                            f"  ❌ Deleting duplicate: {entry.entry_type} ₦{entry.amount} for {entry.supplier.name}"
                         )
                         entry.delete()
                         removed_count += 1

@@ -1,0 +1,66 @@
+{% extends 'dashboard/base.html' %}
+{% block content %}
+<h3>Customer Aging Report – {{ today }}</h3>
+
+<form method="get" class="mb-4 d-flex align-items-center gap-2">
+    <input type="text" name="q" class="form-control" placeholder="Search customers..." value="{{ search }}">
+    <select name="bucket" class="form-select">
+      <option value="">All Buckets</option>
+      <option value="0–30 days" {% if bucket_filter == "0–30 days" %}selected{% endif %}>0–30 days</option>
+      <option value="31–60 days" {% if bucket_filter == "31–60 days" %}selected{% endif %}>31–60 days</option>
+      <option value="61–90 days" {% if bucket_filter == "61–90 days" %}selected{% endif %}>61–90 days</option>
+      <option value="90+ days" {% if bucket_filter == "90+ days" %}selected{% endif %}>90+ days</option>
+    </select>
+    <button type="submit" class="btn btn-primary">Filter</button>
+  </form>
+  <a href="{% url 'accounting:customer_aging_report_pdf' %}?q={{ search }}&bucket={{ bucket_filter }}"
+  class="btn btn-danger btn-sm float-end mb-3" target="_blank">
+ Export PDF
+</a>
+ 
+
+<p><strong>Total Customers:</strong> {{ grouped|length }}</p>
+
+
+{% for customer, buckets in grouped.items %}
+  <h5 class="mt-4">{{ customer.name }}</h5>
+  <p><strong>Bucket count:</strong> {{ buckets|length }}</p>
+
+  {% for bucket, rows in buckets.items %}
+    <p><strong>Bucket:</strong> {{ bucket }} — {{ rows|length }} rows</p>
+
+    {% if rows %}
+    <table class="table table-bordered">
+      <thead>
+        <tr>
+          <th>Invoice</th>
+          <th>Date</th>
+          <th>Bucket</th>
+          <th>Total</th>
+          <th>Paid</th>
+          <th>Balance</th>
+          <th>Age</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>#{{ row.invoice.id }}</td>
+          <td>{{ row.date }}</td>
+          <td>{{ row.bucket }}</td>
+          <td>{{ row.amount|floatformat:2 }}</td>
+          <td>{{ row.paid|floatformat:2 }}</td>
+          <td>{{ row.balance|floatformat:2 }}</td>
+          <td>{{ row.due_days }} days</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p>No rows for bucket: {{ bucket }}</p>
+    {% endif %}
+  {% endfor %}
+{% empty %}
+  <p>No aging data to display.</p>
+{% endfor %}
+{% endblock %}

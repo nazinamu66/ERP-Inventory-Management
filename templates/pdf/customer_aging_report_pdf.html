@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: sans-serif; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th, td { border: 1px solid #999; padding: 4px 6px; text-align: left; }
+    th { background-color: #eee; }
+    .header { text-align: center; margin-bottom: 20px; }
+    .company { font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  {% if company %}
+    <div class="company"><strong>{{ company.name }}</strong></div>
+    <div class="company">{{ company.address }}</div>
+    <div class="company">Phone: {{ company.phone }} | Email: {{ company.email }}</div>
+  {% else %}
+    <div class="company"><strong>Company Info Not Available</strong></div>
+  {% endif %}
+</div>
+
+<body>
+
+<h2>Customer Aging Report</h2>
+<p>Date: {{ today }}</p>
+
+{% for customer, buckets in grouped.items %}
+  <h4>{{ customer.name }}</h4>
+
+  {% for bucket, rows in buckets.items %}
+    <p><strong>{{ bucket }} – {{ rows|length }} invoice{{ rows|length|pluralize }}</strong></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice</th>
+          <th>Date</th>
+          <th>Total</th>
+          <th>Paid</th>
+          <th>Balance</th>
+          <th>Age</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>#{{ row.invoice.id }}</td>
+          <td>{{ row.date }}</td>
+          <td>{{ row.amount|floatformat:2 }}</td>
+          <td>{{ row.paid|floatformat:2 }}</td>
+          <td>{{ row.balance|floatformat:2 }}</td>
+          <td>{{ row.due_days }} days</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+{% empty %}
+  <p>No aging data to display.</p>
+{% endfor %}
+
+</body>
+</html>

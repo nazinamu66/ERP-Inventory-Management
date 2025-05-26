@@ -45,9 +45,9 @@
       <td>{{ forloop.counter }}</td>
       <td>{{ item.product.name }}</td>
       <td>{{ item.quantity }}</td>
-      <td>₹{{ item.unit_price|floatformat:2 }}</td>
-      <td>₹{{ item.subtotal|floatformat:2 }}</td>
-      <td>₹{{ item.profit|floatformat:2 }}</td> <!-- ✅ Show profit -->
+      <td>₦{{ item.unit_price|floatformat:2 }}</td>
+      <td>₦{{ item.subtotal|floatformat:2 }}</td>
+      <td>₦{{ item.profit|floatformat:2 }}</td> <!-- ✅ Show profit -->
     </tr>
     {% endfor %}
   
@@ -68,7 +68,7 @@
     {% for payment in sale.customerpayment_set.all %}
       <tr>
         <td>{{ payment.created_at|date:"Y-m-d" }}</td>
-        <td>₹{{ payment.amount|floatformat:2 }}</td>
+        <td>₦{{ payment.amount|floatformat:2 }}</td>
         <td>{{ payment.get_payment_method_display }}</td>
         <td>{{ payment.remarks|default:"-" }}</td>
       </tr>

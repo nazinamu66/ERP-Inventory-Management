@@ -1,0 +1,78 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+  <h3>🧾 Inventory Aging Report</h3>
+
+  <form method="get" class="row g-3 mb-3">
+    <div class="col-md-3">
+      <label>Store:</label>
+      <select name="store" class="form-select">
+        <option value="">All Stores</option>
+        {% for s in stores %}
+          <option value="{{ s.id }}" {% if s.id|stringformat:"s" == selected_store %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-2">
+      <label>Status:</label>
+      <select name="status" class="form-select">
+        <option value="">All</option>
+        {% for val in status_choices %}
+          <option value="{{ val }}" {% if val == selected_status %}selected{% endif %}>{{ val }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-2">
+      <label>Start Date:</label>
+      <input type="date" name="start_date" value="{{ start_date }}" class="form-control">
+    </div>
+
+    <div class="col-md-2">
+      <label>End Date:</label>
+      <input type="date" name="end_date" value="{{ end_date }}" class="form-control">
+    </div>
+
+    <div class="col-md-2 align-self-end">
+      <button class="btn btn-primary w-100">Filter</button>
+    </div>
+  </form>
+
+  <table class="table table-bordered table-striped">
+    <thead>
+      <tr>
+        <th>Product</th>
+        <th>Qty</th>
+        <th>Last Sold</th>
+        <th>Days Since</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in report %}
+        <tr>
+          <td>{{ item.product.name }}</td>
+          <td>{{ item.quantity }}</td>
+          <td>{{ item.last_sold|default:"N/A" }}</td>
+          <td>{{ item.days_since|default:"—" }}</td>
+          <td>
+            {% if item.status == 'Fresh' %}
+              <span class="badge bg-success">{{ item.status }}</span>
+            {% elif item.status == 'Stale' %}
+              <span class="badge bg-warning text-dark">{{ item.status }}</span>
+            {% elif item.status == 'Critical' %}
+              <span class="badge bg-danger">{{ item.status }}</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ item.status }}</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">No data found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -49,7 +49,7 @@
             {% if request.user.role == 'admin' %}
             <td>{{ exp.store.name }}</td>
             {% endif %}
-            <td>₹{{ exp.amount|floatformat:2 }}</td>
+            <td>₦{{ exp.amount|floatformat:2 }}</td>
             <td>{{ exp.payment_account.name }}</td>
             <td>{{ exp.description|default:"-" }}</td>
             <td>{{ exp.user.username }}</td>

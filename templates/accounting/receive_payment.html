@@ -34,7 +34,7 @@
                         data.forEach(inv => {
                             const option = document.createElement('option');
                             option.value = inv.id;
-                            option.text = `${inv.invoice_number || 'INV-' + inv.id} - ₹${inv.total_amount}`;
+                            option.text = `${inv.invoice_number || 'INV-' + inv.id} - ₦${inv.total_amount}`;
                             invoiceField.appendChild(option);
                         });
                     });

@@ -8,9 +8,9 @@
     <thead>
         <tr>
             <th>Supplier</th>
-            <th>Invoiced (₹)</th>
-            <th>Paid (₹)</th>
-            <th>Balance (₹)</th>
+            <th>Invoiced (₦)</th>
+            <th>Paid (₦)</th>
+            <th>Balance (₦)</th>
             <th>Ledger</th>
         </tr>
     </thead>
@@ -23,9 +23,6 @@
             <td>{{ row.balance|floatformat:2 }}</td>
             <td>
                 <a href="{% url 'accounting:supplier_ledger' row.supplier.id %}" class="btn btn-sm btn-outline-primary">View</a>
-                <a href="{% url 'inventory:supplier_ledger' supplier.id %}" class="btn btn-sm btn-outline-secondary">
-                    View Ledger
-                </a>
                 
             </td>
         </tr>

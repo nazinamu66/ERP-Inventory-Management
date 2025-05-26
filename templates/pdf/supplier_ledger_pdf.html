@@ -1,0 +1,127 @@
+{% load static %}
+{% load custom_filters %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ supplier.name }} - Supplier Ledger</title>
+    <style>
+        body {
+            font-family: 'Helvetica', sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #333;
+            margin: 40px;
+        }
+
+        h2, h4 {
+            text-align: center;
+            margin-bottom: 0;
+        }
+
+        .meta {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 11px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 25px;
+        }
+
+        th, td {
+            border: 1px solid #999;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .right {
+            text-align: right;
+        }
+
+        .footer {
+            margin-top: 30px;
+            font-size: 11px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    {% if company %}
+    <h2>{{ company.name }}</h2>
+    <div class="meta">
+        {{ company.address }}<br>
+        {{ company.phone }} | {{ company.email }}
+    </div>
+    {% endif %}
+
+    <h4>Supplier Ledger – {{ supplier.name }}</h4>
+    <div class="meta">
+        Period: {{ from|default:"Beginning" }} – {{ to|default:"Today" }}
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th class="right">Debit (₦)</th>
+                <th class="right">Credit (₦)</th>
+                <th class="right">Balance (₦)</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in ledger %}
+            <tr>
+                <td>{{ entry.date|date:"Y-m-d" }}</td>
+                <td>{{ entry.type }}</td>
+                <td class="right">
+                    {% if entry.amount < 0 %}
+                    {{ entry.amount|abs_val|floatformat:2 }}
+                    {% endif %}
+                </td>
+                <td class="right">
+                    {% if entry.amount > 0 %}
+                        {{ entry.amount|floatformat:2 }}
+                    {% endif %}
+                </td>
+                <td class="right">{{ entry.balance|floatformat:2 }}</td>
+                <td>{{ entry.note }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align:center;">No ledger entries found for this period.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="4">Final Balance</th>
+                <th class="right">₦{{ final_balance|floatformat:2 }}</th>
+                <th>
+                    {% if final_balance > 0 %}
+                        (You owe supplier)
+                    {% elif final_balance < 0 %}
+                        (Supplier owes you)
+                    {% else %}
+                        (Settled)
+                    {% endif %}
+                </th>
+            </tr>
+        </tfoot>
+    </table>
+
+    <div class="footer">
+        Generated on {{ now|date:"Y-m-d H:i" }}
+    </div>
+</body>
+</html>

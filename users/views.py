@@ -59,7 +59,8 @@ def user_list(request):
         return render(request, 'errors/permission_denied.html', status=403)
 
     if request.user.role == 'manager':
-        users = User.objects.filter(store=request.user.store)
+        # Managers can only see users in their own stores
+        users = User.objects.filter(stores__in=request.user.stores.all()).distinct()
     else:
         users = User.objects.all()
 
@@ -69,18 +70,23 @@ def user_list(request):
 
 @login_required
 def user_edit(request, pk):
-    user = get_object_or_404(User, pk=pk)
+    user_to_edit = get_object_or_404(User, pk=pk)
 
-    if not request.user.is_superuser and (request.user.role != 'manager' or user.store != request.user.store):
-        return render(request, 'errors/permission_denied.html', status=403)
+    if not request.user.is_superuser:
+        if request.user.role != 'manager':
+            return render(request, 'errors/permission_denied.html', status=403)
+
+        # Managers can only edit users assigned to their stores
+        if not user_to_edit.stores.filter(id__in=request.user.stores.values_list('id', flat=True)).exists():
+            return render(request, 'errors/permission_denied.html', status=403)
 
     if request.method == 'POST':
-        form = UserForm(request.POST, instance=user)
+        form = UserForm(request.POST, instance=user_to_edit, request=request)
         if form.is_valid():
             form.save()
             return redirect('users:user_list')
     else:
-        form = UserForm(instance=user)
+        form = UserForm(instance=user_to_edit, request=request)
 
     return render(request, 'users/user_form.html', {'form': form})
 
@@ -285,6 +291,14 @@ def admin_dashboard(request):
     }
 
     return render(request, 'dashboard/admin.html', context)
+
+# users/models.py
+def get_active_store(self, request):
+    store_id = request.GET.get("store")
+    if store_id:
+        return self.stores.filter(id=store_id).first()
+    return self.stores.first()
+
 
 from django.db.models import Q
 

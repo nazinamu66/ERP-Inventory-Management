@@ -4,7 +4,7 @@ from django.conf.urls.static import static
 from . import views
 from .views import (
     stock_transfer_list_view,
-    stock_transfer_view,
+    stock_transfer_create,     # ✅ was wrongly named as stock_transfer_view
     approve_transfer,
     reject_transfer,
 )
@@ -29,6 +29,10 @@ urlpatterns = [
     path('stock-adjustment/', views.stock_adjustment_create, name='stock_adjustment_create'),
     path('stock-adjustments/', views.stock_adjustment_list, name='stock_adjustment_list'),
     path('api/get-stock/', views.get_stock_quantity, name='get_stock_quantity'),
+    path('transfers/<int:transfer_id>/slip/', views.transfer_slip_pdf, name='transfer_slip_pdf'),
+    path('aging-report/', views.inventory_aging_report, name='inventory_aging_report'),
+
+
 
     # Audit Logs
     path('audit-logs/', views.audit_log_list_view, name='audit_log_list'),
@@ -82,7 +86,7 @@ urlpatterns = [
     # inventory/urls.py
 
     path('transfers/', stock_transfer_list_view, name='stock_transfer_list'),
-    path('transfers/new/', stock_transfer_view, name='stock_transfer'),
+    path('transfers/new/', views.stock_transfer_create, name='stock_transfer_create'),
     path('transfers/<int:transfer_id>/approve/', approve_transfer, name='approve_transfer'),
     path('transfers/<int:transfer_id>/reject/', reject_transfer, name='reject_transfer'),
 

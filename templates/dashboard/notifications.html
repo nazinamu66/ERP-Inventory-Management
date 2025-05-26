@@ -1,0 +1,20 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<h2>Your Notifications</h2>
+
+<ul class="list-group">
+    {% for note in notifications %}
+    <li class="list-group-item {% if not note.is_read %}fw-bold{% endif %}">
+      {% if note.url %}
+        <a href="{% url 'accounting:notification_redirect' notification_id=note.id %}">{{ note.message }}</a>
+      {% else %}
+        {{ note.message }}
+      {% endif %}
+      <small class="text-muted d-block">{{ note.created_at|date:"M d, Y H:i" }}</small>
+    </li>
+  {% empty %}
+    <li class="list-group-item">No notifications yet.</li>
+  {% endfor %}
+  </ul>
+{% endblock %}

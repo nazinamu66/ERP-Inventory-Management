@@ -46,5 +46,25 @@
             submitBtn.innerHTML = 'Processing...';
         });
     });
+
+    document.addEventListener('DOMContentLoaded', function () {
+    const sourceSelect = document.getElementById('id_source_store');
+    const destSelect = document.getElementById('id_destination_store');
+
+    function disableSameStoreOption() {
+        const sourceValue = sourceSelect.value;
+
+        Array.from(destSelect.options).forEach(option => {
+            option.disabled = option.value === sourceValue && sourceValue !== "";
+        });
+    }
+
+    if (sourceSelect && destSelect) {
+        sourceSelect.addEventListener('change', disableSameStoreOption);
+        disableSameStoreOption();  // Run on load
+    }
+});
+
+
 </script>
 {% endblock %}

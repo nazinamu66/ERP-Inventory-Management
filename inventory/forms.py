@@ -106,8 +106,8 @@ class SaleForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if request and hasattr(request.user, 'role') and request.user.role in ['manager', 'staff', 'sales', 'clerk']:
-            self.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
-            self.fields['store'].initial = request.user.store
+            self.fields['store'].queryset = request.user.stores.all()
+            self.fields['store'].initial = request.user.get_active_store(request)
 
         self.fields['bank_account'].queryset = Account.objects.filter(type='bank')
 
@@ -138,8 +138,8 @@ class InvoiceForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if request and hasattr(request.user, 'role') and request.user.role in ['manager', 'staff', 'sales', 'clerk']:
-            self.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
-            self.fields['store'].initial = request.user.store
+            self.fields['store'].queryset = request.user.stores.all()
+            self.fields['store'].initial = request.user.get_active_store(request)
 
 
 class SaleReceiptForm(forms.ModelForm):
@@ -167,8 +167,8 @@ class SaleReceiptForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if request and hasattr(request.user, 'role') and request.user.role in ['manager', 'staff', 'sales', 'clerk']:
-            self.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
-            self.fields['store'].initial = request.user.store
+            self.fields['store'].queryset = request.user.stores.all()
+            self.fields['store'].initial = request.user.get_active_store(request)
 
         self.fields['bank_account'].queryset = Account.objects.filter(type='asset')
 
@@ -190,8 +190,8 @@ class PurchaseForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if request and hasattr(request.user, 'role') and request.user.role == 'manager':
-            self.fields['store'].queryset = Store.objects.filter(id=request.user.store.id)
-            self.fields['store'].initial = request.user.store
+            self.fields['store'].queryset = request.user.stores.all()
+            self.fields['store'].initial = request.user.get_active_store(request)
 
 
 class StockAdjustmentForm(forms.ModelForm):
@@ -220,13 +220,33 @@ class StockAdjustmentForm(forms.ModelForm):
         return qty
 
 
-class ProductForm(forms.ModelForm):
+class ProductWithStockForm(forms.ModelForm):
+    starting_quantity = forms.IntegerField(required=False, min_value=0, label="Initial Quantity")
+    cost_price = forms.DecimalField(required=False, max_digits=12, decimal_places=2, label="Initial Cost Price")
+    store = forms.ModelChoiceField(queryset=Store.objects.all(), required=False)
+
     class Meta:
         model = Product
-        fields = ['name', 'sku', 'description', 'category', 'unit', 'quantity', 'is_active']
+        fields = ['name', 'description', 'category', 'unit', 'reorder_level', 'is_active']
         widgets = {
             'description': forms.Textarea(attrs={'rows': 3}),
         }
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        # Add SKU as readonly on edit
+        if self.instance and self.instance.pk:
+            self.fields['sku'] = forms.CharField(
+                label="SKU",
+                initial=self.instance.sku,
+                required=False,
+                widget=forms.TextInput(attrs={'readonly': 'readonly', 'class': 'form-control'})
+            )
+
+        if user and not user.is_superuser:
+            self.fields['store'].queryset = user.stores.all()
 
 
 class StockTransferForm(forms.ModelForm):
@@ -245,5 +265,19 @@ class StockTransferForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         if request and hasattr(request.user, 'role') and request.user.role == 'manager':
-            self.fields['source_store'].queryset = Store.objects.filter(id=request.user.store.id)
-            self.fields['source_store'].initial = request.user.store
+            allowed_stores = request.user.stores.all()
+            self.fields['source_store'].queryset = allowed_stores
+            self.fields['destination_store'].queryset = Store.objects.exclude(id__in=allowed_stores.values_list('id', flat=True))
+        else:
+            self.fields['source_store'].queryset = Store.objects.all()
+            self.fields['destination_store'].queryset = Store.objects.all()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        source = cleaned_data.get('source_store')
+        destination = cleaned_data.get('destination_store')
+
+        if source and destination and source == destination:
+            raise forms.ValidationError("Source and destination stores must be different.")
+
+        return cleaned_data

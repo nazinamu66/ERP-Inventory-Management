@@ -54,7 +54,24 @@ class AccountTransferForm(forms.Form):
             raise forms.ValidationError("Source and destination cannot be the same.")
         return cleaned
 
+from inventory.models import Store
 
+class GeneralLedgerForm(forms.Form):
+    account = forms.ModelChoiceField(queryset=Account.objects.all(), label="Account")
+    store = forms.ModelChoiceField(queryset=Store.objects.none(), required=False, label="Store")
+    start_date = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}))
+    end_date = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}))
+
+    def __init__(self, *args, **kwargs):
+        request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        if request:
+            user = request.user
+            if user.is_superuser or user.role == 'admin':
+                self.fields['store'].queryset = Store.objects.all()
+            else:
+                self.fields['store'].queryset = user.stores.all()
 
 class SupplierPaymentForm(forms.Form):
     supplier = forms.ModelChoiceField(queryset=Supplier.objects.all(), required=True)
@@ -108,5 +125,5 @@ class CustomerPaymentForm(forms.ModelForm):
         if invoice and amount:
             balance = invoice.total_amount - invoice.amount_paid
             if amount > balance:
-                self.add_error('amount', f"Payment exceeds balance. Remaining: ₹{balance:.2f}")
+                self.add_error('amount', f"Payment exceeds balance. Remaining: ₦{balance:.2f}")
 

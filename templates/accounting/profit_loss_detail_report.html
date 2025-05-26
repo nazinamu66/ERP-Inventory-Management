@@ -35,9 +35,9 @@
         <tr>
             <th>Product</th>
             <th>Quantity Sold</th>
-            <th>Total Sales (₹)</th>
-            <th>Total Cost (₹)</th>
-            <th>Profit (₹)</th>
+            <th>Total Sales (₦)</th>
+            <th>Total Cost (₦)</th>
+            <th>Profit (₦)</th>
         </tr>
     </thead>
     <tbody>
@@ -69,7 +69,7 @@
     <thead>
         <tr>
             <th>Expense Category</th>
-            <th>Amount (₹)</th>
+            <th>Amount (₦)</th>
         </tr>
     </thead>
     <tbody>
@@ -95,11 +95,11 @@
     <tbody>
         <tr>
             <th>Gross Profit</th>
-            <td>₹{{ totals.gross_profit|floatformat:2 }}</td>
+            <td>₦{{ totals.gross_profit|floatformat:2 }}</td>
         </tr>
         <tr>
             <th>Net Profit</th>
-            <td>₹{{ totals.net_profit|floatformat:2 }}</td>
+            <td>₦{{ totals.net_profit|floatformat:2 }}</td>
         </tr>
     </tbody>
 </table>

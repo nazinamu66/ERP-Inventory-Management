@@ -1,53 +1,53 @@
 {% extends "dashboard/base.html" %}
-
 {% block title %}Product List{% endblock %}
 
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2>Products</h2>
-        <a href="{% url 'inventory:product_create' %}" class="btn btn-success">Add Product</a>
-      </div>
+<div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+    <h2 class="mb-2 mb-md-0">📦 Products</h2>
+    <a href="{% url 'inventory:product_create' %}" class="btn btn-success">➕ Add Product</a>
+</div>
 
-    {% if products %}
-        <table class="table table-bordered table-hover">
+{% if products %}
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle">
             <thead class="table-light">
                 <tr>
                     <th>Name</th>
                     <th>SKU</th>
-                    <th>Category</th>
-                    <th>Unit</th>
-                    <th>Created</th>
+                    <th class="d-none d-md-table-cell">Category</th>
+                    <th class="d-none d-md-table-cell">Unit</th>
+                    <th class="d-none d-lg-table-cell">Created</th>
                     <th>Status</th>
-                    <th>Quantity</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for product in products %}
-                    <tr>
-                        <td>{{ product.name }}</td>
-                        <td>{{ product.sku }}</td>
-                        <td>{{ product.category|default:"—" }}</td>
-                        <td>{{ product.unit }}</td>
-                        <td>{{ product.created_at|date:"Y-m-d" }}</td>
-                        <td>
-                            {% if product.is_active %}
-                                <span class="badge bg-success">Active</span>
-                            {% else %}
-                                <span class="badge bg-secondary">Inactive</span>
-                            {% endif %}
-                        </td>
-                        <td>{{product.quantity}}</td> 
-                        <td>
-                          <a href="{% url 'inventory:product_edit' product.id %}" class="btn btn-sm btn-outline-primary">Edit</a>
-                          <a href="{% url 'inventory:product_delete' product.id %}" class="btn btn-sm btn-outline-danger">Delete</a>
-
-                      </td>
-                      
-                    </tr>
+                <tr>
+                    <td>{{ product.name }}</td>
+                    <td>{{ product.sku }}</td>
+                    <td class="d-none d-md-table-cell">{{ product.category|default:"—" }}</td>
+                    <td class="d-none d-md-table-cell">{{ product.unit }}</td>
+                    <td class="d-none d-lg-table-cell">{{ product.created_at|date:"Y-m-d" }}</td>
+                    <td>
+                        {% if product.is_active %}
+                            <span class="badge bg-success">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="{% url 'inventory:product_edit' product.id %}" class="btn btn-outline-primary">Edit</a>
+                            <a href="{% url 'inventory:product_delete' product.id %}" class="btn btn-outline-danger">Delete</a>
+                        </div>
+                    </td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>
-    {% else %}
-        <p>No products found.</p>
-    {% endif %}
+    </div>
+{% else %}
+    <div class="alert alert-warning">No products found.</div>
+{% endif %}
 {% endblock %}

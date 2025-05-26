@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: sans-serif; font-size: 14px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .meta { margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        .company-logo { max-height: 80px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    {% if company %}
+        {% if company.logo %}
+            <img src="{{ company.logo.url }}" alt="Company Logo" class="company-logo">
+        {% endif %}
+        <h2>{{ company.name }}</h2>
+        <p>{{ company.address }}</p>
+        <p>{{ company.contact_email }} | {{ company.contact_phone }}</p>
+        <p>{{ company.website }}</p>
+    {% else %}
+        <h2>Your Company Name</h2>
+    {% endif %}
+</div>
+    <hr>
+
+    <h3>Stock Transfer Slip #{{ transfer.id }}</h3>
+    <div class="meta">
+        <p><strong>Date:</strong> {{ date|date:"M d, Y H:i" }}</p>
+        <p><strong>From:</strong> {{ from_store.name }}</p>
+        <p><strong>To:</strong> {{ to_store.name }}</p>
+        <p><strong>Created by:</strong> {{ created_by }}</p>
+        <p><strong>Status:</strong> {{ status }}</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Quantity</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+                <tr>
+                    <td>{{ item.product.name }}</td>
+                    <td>{{ item.quantity }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p><em>Generated on {{ date|date:"Y-m-d H:i" }}</em></p>
+</body>
+</html>

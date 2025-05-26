@@ -55,7 +55,7 @@
         <div class="card bg-secondary text-white">
             <div class="card-body">
                 <h6>Total Revenue</h6>
-                <p class="fs-5">₹{{ total_revenue|floatformat:2 }}</p>
+                <p class="fs-5">₦{{ total_revenue|floatformat:2 }}</p>
             </div>
         </div>
     </div>
@@ -114,7 +114,7 @@
 </table>
 
 {% if request.user.can_transfer_stock %}
-    <a href="{% url 'inventory:stock_transfer' %}" class="btn btn-outline-secondary">Transfer Stock</a>
+    <a href="{% url 'inventory:stock_transfer_create' %}" class="btn btn-outline-secondary">Transfer Stock</a>
 {% endif %}
 
 <!-- Chart.js -->
@@ -157,7 +157,7 @@
         data: {
             labels: revLabels,
             datasets: [{
-                label: "Revenue (₹)",
+                label: "Revenue (₦)",
                 data: revValues,
                 borderColor: "rgb(75, 192, 192)",
                 backgroundColor: "rgba(75, 192, 192, 0.2)",

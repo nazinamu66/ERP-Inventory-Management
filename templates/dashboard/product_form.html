@@ -1,18 +1,44 @@
 {% extends 'dashboard/base.html' %}
+{% load static %}
 
 {% block title %}
-    {% if product %}Edit Product{% else %}Add Product{% endif %}
+  {% if product %}Edit Product{% else %}Add Product{% endif %}
 {% endblock %}
 
 {% block content %}
 <div class="container">
-    <h2 class="mb-4">{% if product %}Edit{% else %}Add{% endif %} Product</h2>
-    <form method="post" class="p-4 border rounded bg-light">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" class="btn btn-success">
-            {% if product %}Update{% else %}Create{% endif %}
-        </button>
-    </form>
+  <h2 class="mb-4">{% if product %}Edit{% else %}Add{% endif %} Product</h2>
+
+  <form method="post" class="p-4 border rounded bg-light">
+    {% csrf_token %}
+
+    <div class="row">
+        {% for field in form.visible_fields %}
+        {% if field.name == "store" and field.field.queryset.count == 1 %}
+          <input type="hidden" name="{{ field.name }}" value="{{ field.field.queryset.first.id }}">
+          <div class="mb-3 col-md-6">
+            <label class="form-label">Store</label>
+            <input type="text" class="form-control" readonly value="{{ field.field.queryset.first.name }}">
+          </div>
+        {% else %}
+          <div class="mb-3 col-md-6">
+            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}
+              <small class="form-text text-muted">{{ field.help_text }}</small>
+            {% endif %}
+            {% for error in field.errors %}
+              <div class="text-danger small">{{ error }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endfor %}
+      </div>
+
+    <button type="submit" class="btn btn-success">
+      {% if product %}Update{% else %}Create{% endif %}
+    </button>
+    <a href="{% url 'inventory:product_list' %}" class="btn btn-secondary">Cancel</a>
+  </form>
 </div>
 {% endblock %}

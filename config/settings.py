@@ -46,6 +46,8 @@ INSTALLED_APPS = [
     "widget_tweaks",
     # 'accounting', 
     'accounting.apps.AccountingConfig',
+    'django.contrib.humanize',
+
 
 
 

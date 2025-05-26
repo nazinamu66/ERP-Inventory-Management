@@ -1,0 +1,45 @@
+{% extends 'dashboard/base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h3>📊 Trial Balance</h3>
+    {% if stores|length > 1 or show_all_option %}
+<form method="get" class="mb-3">
+    <label for="store">Store:</label>
+    <select name="store" id="store" onchange="this.form.submit()" class="form-control w-auto d-inline-block">
+        {% if show_all_option %}
+            <option value="all" {% if selected_store_id == 'all' %}selected{% endif %}>All Stores</option>
+        {% endif %}
+        {% for store in stores %}
+            <option value="{{ store.id }}" {% if store.id|stringformat:"s" == selected_store_id %}selected{% endif %}>
+                {{ store.name }}
+            </option>
+        {% endfor %}
+    </select>
+</form>
+{% endif %}
+
+    <table class="table table-striped mt-3">
+        <thead>
+            <tr>
+                <th>Account</th>
+                <th class="text-end">Debit</th>
+                <th class="text-end">Credit</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for line in lines %}
+            <tr>
+                <td>{{ line.account__name }}</td>
+                <td class="text-end">{{ line.total_debit|floatformat:2 }}</td>
+                <td class="text-end">{{ line.total_credit|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="fw-bold">
+                <td>Total</td>
+                <td class="text-end">{{ total_debit|floatformat:2 }}</td>
+                <td class="text-end">{{ total_credit|floatformat:2 }}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -39,7 +39,23 @@ from datetime import date
 from django.db.models import ExpressionWrapper, DecimalField
 from inventory.models import SaleItem
 from accounting.models import ExpenseEntry
+from .forms import GeneralLedgerForm
 
+
+
+def get_user_allowed_store(request, store_id):
+    """
+    Restricts access to the requested store unless user is admin/superuser.
+    Falls back to first assigned store or None.
+    """
+    user = request.user
+    if user.is_superuser or user.role == 'admin':
+        return Store.objects.filter(id=store_id).first() if store_id else None
+
+    user_store_ids = user.stores.values_list('id', flat=True)
+    if store_id and int(store_id) in user_store_ids:
+        return Store.objects.filter(id=store_id).first()
+    return user.stores.first()
 
 
 
@@ -58,7 +74,7 @@ def record_account_deposit(request):
                     amount=amount,
                     description=note,
                     is_deposit=True,
-                    store=request.user.store  # ← required!
+                    store = request.user.get_active_store(request)
 
                 )
                 messages.success(request, f"N{amount} deposited into {destination.name}.")
@@ -71,39 +87,6 @@ def record_account_deposit(request):
     return render(request, 'accounting/record_account_deposit.html', {'form': form})
 
 
-@login_required
-def record_supplier_payment(request):
-    if request.method == 'POST':
-        form = SupplierPaymentForm(request.POST)
-        if form.is_valid():
-            supplier = form.cleaned_data['supplier']
-            account = form.cleaned_data['account']
-            amount = form.cleaned_data['amount']
-            payment_date = form.cleaned_data['payment_date']
-            note = form.cleaned_data['note']
-
-            try:
-                # 1. Record transaction — this should also handle SupplierLedger
-                transaction = record_transaction_by_slug(
-                    source_slug=account.slug,
-                    destination_slug="accounts-payable",  # supplier control account
-                    amount=amount,
-                    description=note or f"Payment to {supplier.name}",
-                    supplier=supplier,
-                    store=request.user.store  # ← required!
-
-                )
-
-                # 3. Redirect to correct ledger URL name
-                messages.success(request, f"Payment of N{amount} recorded for {supplier.name}")
-                return redirect('accounting:supplier_ledger', supplier_id=supplier.id)
-
-            except Exception as e:
-                messages.error(request, f"Transaction failed: {e}")
-    else:
-        form = SupplierPaymentForm()
-
-    return render(request, 'accounting/record_supplier_payment.html', {'form': form})
 
 from .models import ExpenseEntry  # 👈 Import the new model
 
@@ -211,7 +194,7 @@ def record_account_transfer(request):
                     destination_slug=destination.slug,
                     amount=amount,
                     description=note,
-                    store=request.user.store  # ← required!
+                    store = request.user.get_active_store(request)
 
                 )
 
@@ -241,7 +224,7 @@ def withdraw_funds(request):
                     amount=amount,
                     description=note,
                     is_withdrawal=True,  # Add this flag in your util
-                    store=request.user.store  # ← required!
+                    store = request.user.get_active_store(request)
 
                 )
                 messages.success(request, f"N{amount} withdrawn from {account.name}.")
@@ -253,6 +236,205 @@ def withdraw_funds(request):
 
     return render(request, 'accounting/withdraw_funds.html', {'form': form})
 
+
+
+from collections import defaultdict
+
+# from collections import defaultdict
+# from django.shortcuts import render
+# from django.utils.timezone import now
+from inventory.models import Sale
+# from django.contrib.auth.decorators import login_required
+
+@login_required
+def customer_aging_report_view(request):
+    today = now().date()
+    search = request.GET.get('q', '').strip()
+    bucket_filter = request.GET.get('bucket')
+
+    invoices = (
+        Sale.objects
+        .filter(sale_type='invoice')
+        .exclude(balance_due=0)
+        .select_related('customer')
+    )
+
+    if search:
+        invoices = invoices.filter(
+            Q(customer__name__icontains=search) |
+            Q(customer__email__icontains=search)
+        )
+
+    grouped = defaultdict(lambda: defaultdict(list))
+
+    for invoice in invoices:
+        if not invoice.customer:
+            continue
+
+        age = (today - invoice.sale_date.date()).days
+        if age <= 30:
+            bucket = '0–30 days'
+        elif age <= 60:
+            bucket = '31–60 days'
+        elif age <= 90:
+            bucket = '61–90 days'
+        else:
+            bucket = '90+ days'
+
+        paid = invoice.amount_paid or 0
+        total = invoice.total_amount or 0
+        balance = total - paid
+        if balance <= 0:
+            continue
+
+        # ❗ Skip if user filtered a different bucket
+        if bucket_filter and bucket_filter != bucket:
+            continue
+
+        grouped[invoice.customer][bucket].append({
+            'invoice': invoice,
+            'amount': total,
+            'paid': paid,
+            'balance': balance,
+            'bucket': bucket,
+            'due_days': age,
+            'date': invoice.sale_date.date(),
+        })
+
+    for customer in grouped:
+        grouped[customer] = dict(grouped[customer])
+
+    return render(request, 'accounting/customer_aging_report.html', {
+        'grouped': dict(grouped),
+        'today': today,
+        'search': search,
+        'bucket_filter': bucket_filter,
+    })
+
+# from django.template.loader import render_to_string
+# from weasyprint import HTML
+
+# from inventory.models import CompanyProfile  # Adjust path if needed
+
+@login_required
+def customer_aging_report_pdf(request):
+    today = now().date()
+    search = request.GET.get('q', '').strip()
+    bucket_filter = request.GET.get('bucket')
+    company = CompanyProfile.objects.first()
+
+    invoices = (
+        Sale.objects
+        .filter(sale_type='invoice')
+        .exclude(balance_due=0)
+        .select_related('customer')
+    )
+
+    if search:
+        invoices = invoices.filter(
+            Q(customer__name__icontains=search) |
+            Q(customer__email__icontains=search)
+        )
+
+    grouped = defaultdict(lambda: defaultdict(list))
+
+    for invoice in invoices:
+        if not invoice.customer:
+            continue
+
+        age = (today - invoice.sale_date.date()).days
+        if age <= 30:
+            bucket = '0–30 days'
+        elif age <= 60:
+            bucket = '31–60 days'
+        elif age <= 90:
+            bucket = '61–90 days'
+        else:
+            bucket = '90+ days'
+
+        paid = invoice.amount_paid or 0
+        total = invoice.total_amount or 0
+        balance = total - paid
+        if balance <= 0:
+            continue
+
+        if bucket_filter and bucket_filter != bucket:
+            continue
+
+        grouped[invoice.customer][bucket].append({
+            'invoice': invoice,
+            'amount': total,
+            'paid': paid,
+            'balance': balance,
+            'bucket': bucket,
+            'due_days': age,
+            'date': invoice.sale_date.date(),
+        })
+
+    for customer in grouped:
+        grouped[customer] = dict(grouped[customer])
+
+    html = render_to_string('pdf/customer_aging_report_pdf.html', {
+        'grouped': dict(grouped),
+        'today': today,
+        'company': company,
+    })
+
+    pdf_file = HTML(string=html).write_pdf()
+    response = HttpResponse(pdf_file, content_type='application/pdf')
+    response['Content-Disposition'] = 'inline; filename="customer_aging_report.pdf"'
+    return response
+
+
+
+@login_required
+def record_supplier_payment(request):
+    if request.method == 'POST':
+        form = SupplierPaymentForm(request.POST)
+        if form.is_valid():
+            supplier = form.cleaned_data['supplier']
+            account = form.cleaned_data['account']
+            amount = form.cleaned_data['amount']
+            payment_date = form.cleaned_data['payment_date']
+            note = form.cleaned_data['note']
+
+            try:
+                # 1️⃣ Record the transaction
+                txn = record_transaction_by_slug(
+                    source_slug=account.slug,
+                    destination_slug="accounts-payable",
+                    amount=amount,
+                    description=note or f"Payment to {supplier.name}",
+                    supplier=supplier,
+                    store=request.user.get_active_store(request)
+                )
+
+                # 2️⃣ Create and link SupplierPayment
+                SupplierPayment.objects.create(
+                    supplier=supplier,
+                    account=account,
+                    amount=amount,
+                    payment_date=payment_date,
+                    note=note,
+                    created_by=request.user,
+                    transaction=txn
+                )
+
+                messages.success(request, f"Payment of ₦{amount} recorded for {supplier.name}")
+                return redirect('accounting:supplier_ledger', supplier_id=supplier.id)
+
+            except Exception as e:
+                messages.error(request, f"Transaction failed: {e}")
+    else:
+        form = SupplierPaymentForm()
+
+    return render(request, 'accounting/record_supplier_payment.html', {'form': form})
+
+
+from django.db.models import Sum, F, DecimalField, ExpressionWrapper
+from decimal import Decimal
+from inventory.models import PurchaseOrderItem
+
 @login_required
 def supplier_balances(request):
     if not request.user.is_superuser and request.user.role != 'manager':
@@ -260,11 +442,34 @@ def supplier_balances(request):
         return render(request, 'errors/permission_denied.html', status=403)
 
     suppliers = Supplier.objects.all()
+    store_filter = None
+
+    # 🔒 For managers, restrict based on allowed stores
+    if request.user.role == 'manager':
+        store_ids = request.user.stores.values_list('id', flat=True)
+        store_filter = Q(purchase_order__store__in=store_ids)
+
     supplier_data = []
 
     for supplier in suppliers:
-        total_invoiced = Purchase.objects.filter(supplier=supplier).aggregate(total=Sum('total_amount'))['total'] or 0
-        total_paid = SupplierPayment.objects.filter(supplier=supplier).aggregate(total=Sum('amount'))['total'] or 0
+        # 📦 Total invoiced: sum of all PO item subtotals
+        po_items = PurchaseOrderItem.objects.filter(purchase_order__supplier=supplier)
+        if store_filter:
+            po_items = po_items.filter(store_filter)
+
+        total_invoiced = po_items.aggregate(
+            total=Sum(F('quantity') * F('unit_price'), output_field=DecimalField())
+        )['total'] or Decimal('0.00')
+
+        # 💸 Total paid
+        payments = SupplierPayment.objects.filter(supplier=supplier)
+        if store_filter:
+            payments = payments.filter(transaction__store__in=store_ids)
+
+        total_paid = payments.aggregate(
+            total=Sum('amount')
+        )['total'] or Decimal('0.00')
+
         balance = total_invoiced - total_paid
 
         supplier_data.append({
@@ -274,7 +479,10 @@ def supplier_balances(request):
             'balance': balance
         })
 
-    return render(request, 'dashboard/supplier_balances.html', {'suppliers': supplier_data})
+    return render(request, 'dashboard/supplier_balances.html', {
+        'suppliers': supplier_data
+    })
+
 
 @login_required
 def supplier_ledger_view(request, supplier_id):
@@ -283,13 +491,26 @@ def supplier_ledger_view(request, supplier_id):
         return render(request, 'errors/permission_denied.html', status=403)
 
     supplier = get_object_or_404(Supplier, id=supplier_id)
-    ledger_entries = SupplierLedger.objects.filter(supplier=supplier).select_related('transaction').order_by('transaction__created_at')
 
+    # ✅ Date filters
+    from_date_str = request.GET.get('from')
+    to_date_str = request.GET.get('to')
+
+    from_date = parse_date_with_tz(from_date_str)
+    to_date = parse_date_with_tz(to_date_str, end_of_day=True)
+
+    # 🔁 Get entries
+    ledger_qs = SupplierLedger.objects.filter(supplier=supplier).select_related('transaction').order_by('transaction__created_at')
+
+    if from_date:
+        ledger_qs = ledger_qs.filter(transaction__created_at__gte=from_date)
+    if to_date:
+        ledger_qs = ledger_qs.filter(transaction__created_at__lte=to_date)
+
+    # 🧮 Running balance
     balance = 0
     ledger = []
-
-    for entry in ledger_entries:
-        # 🧾 For supplier ledger: DEBIT = reduce balance (payment), CREDIT = increase balance (purchase)
+    for entry in ledger_qs:
         amount = entry.amount if entry.entry_type == 'credit' else -entry.amount
         balance += amount
         ledger.append({
@@ -299,12 +520,14 @@ def supplier_ledger_view(request, supplier_id):
             'balance': balance,
             'note': entry.transaction.description or ''
         })
-    context = {
+
+    return render(request, 'dashboard/supplier_ledger.html', {
         'supplier': supplier,
         'ledger': ledger,
-        'final_balance': balance
-    }
-    return render(request, 'dashboard/supplier_ledger.html', context)
+        'final_balance': balance,
+        'from': from_date_str,
+        'to': to_date_str,
+    })
 
 
 def parse_date_with_tz(date_str, end_of_day=False):
@@ -316,15 +539,322 @@ def parse_date_with_tz(date_str, end_of_day=False):
         return timezone.make_aware(date)
     except Exception:
         return None
+    
+from django.template.loader import render_to_string
+from weasyprint import HTML
+
+@login_required
+def supplier_ledger_pdf(request, supplier_id):
+    supplier = get_object_or_404(Supplier, pk=supplier_id)
+    from_date = request.GET.get('from')
+    to_date = request.GET.get('to')
+    company = CompanyProfile.objects.first()
+
+    entries = SupplierLedger.objects.filter(supplier=supplier).select_related('transaction').order_by('transaction__created_at')
+
+    # Filter by date range
+    if from_date:
+        entries = entries.filter(transaction__created_at__date__gte=from_date)
+    if to_date:
+        entries = entries.filter(transaction__created_at__date__lte=to_date)
+
+    balance = Decimal('0.00')
+    ledger = []
+    for entry in entries:
+        amount = entry.amount if entry.entry_type == 'credit' else -entry.amount
+        balance += amount
+        ledger.append({
+            'date': entry.transaction.created_at,
+            'type': entry.get_entry_type_display(),
+            'amount': amount,
+            'balance': balance,
+            'note': entry.transaction.description or ''
+        })
+
+    html_string = render_to_string('pdf/supplier_ledger_pdf.html', {
+        'supplier': supplier,
+        'ledger': ledger,
+        'final_balance': balance,
+        'from': from_date,
+        'to': to_date,
+        'company': company,
+    })
+
+    pdf_file = HTML(string=html_string).write_pdf()
+    response = HttpResponse(pdf_file, content_type='application/pdf')
+    response['Content-Disposition'] = f'filename=supplier_ledger_{supplier.id}.pdf'
+    return response
 
 
-def build_customer_ledger(customer, from_date_str=None, to_date_str=None):
+
+
+@login_required
+def balance_sheet_view(request):
+    user = request.user
+    store_id = request.GET.get('store')
+    as_of_date = parse_date_safe(request.GET.get('date')) or now().date()
+
+    if user.is_superuser or user.role == 'admin':
+        store_qs = Store.objects.all()
+        store = Store.objects.filter(id=store_id).first() if store_id else None
+    else:
+        store_qs = user.stores.all()
+        store = user.stores.filter(id=store_id).first() if store_id else user.stores.first()
+
+    if not store:
+        messages.error(request, "No valid store selected.")
+        return redirect('dashboard')
+
+    # 🔎 Pull account balances from TransactionLines
+    lines = (
+        TransactionLine.objects
+        .filter(transaction__store=store, transaction__created_at__date__lte=as_of_date)
+        .values('account__name', 'account__type')
+        .annotate(
+            total_debit=Sum('debit'),
+            total_credit=Sum('credit')
+        )
+        .order_by('account__name')
+    )
+
+    assets, liabilities, equity = [], [], []
+    totals = {'asset': 0, 'liability': 0, 'equity': 0}
+
+    for line in lines:
+        acc_type = line['account__type']
+        name = line['account__name']
+        debit = line['total_debit'] or 0
+        credit = line['total_credit'] or 0
+        balance = debit - credit
+
+        if acc_type in ['liability', 'equity']:
+            balance *= -1
+
+        entry = {'name': name, 'balance': balance}
+
+        if acc_type == 'asset':
+            assets.append(entry)
+            totals['asset'] += balance
+        elif acc_type == 'liability':
+            liabilities.append(entry)
+            totals['liability'] += balance
+        elif acc_type == 'equity':
+            equity.append(entry)
+            totals['equity'] += balance
+
+    # 🧠 Retained Earnings (Net Profit)
+    sales = SaleItem.objects.filter(sale__store=store, sale__sale_date__date__lte=as_of_date).aggregate(
+        total_sales=Sum(F('unit_price') * F('quantity'), output_field=DecimalField(max_digits=20, decimal_places=2)),
+        total_cost=Sum(F('cost_price') * F('quantity'), output_field=DecimalField(max_digits=20, decimal_places=2))
+    )
+    income = (sales['total_sales'] or 0) - (sales['total_cost'] or 0)
+
+    expenses = ExpenseEntry.objects.filter(store=store, date__lte=as_of_date).aggregate(
+        total_expenses=Sum('amount')
+    )
+    net_profit = income - (expenses['total_expenses'] or 0)
+
+    equity.append({'name': 'Retained Earnings', 'balance': net_profit})
+    totals['equity'] += net_profit
+
+    return render(request, 'accounting/balance_sheet.html', {
+        'assets': assets,
+        'liabilities': liabilities,
+        'equity': equity,
+        'totals': totals,
+        'stores': store_qs,
+        'selected_store_id': store.id,
+        'as_of_date': as_of_date,
+    })
+
+# from django.template.loader import get_template
+# from django.http import HttpResponse
+# from xhtml2pdf import pisa
+from .utils import get_balance_sheet_context
+# from inventory.models import CompanyProfile
+
+
+@login_required
+def balance_sheet_pdf_view(request):
+    company = CompanyProfile.objects.first()
+    store_id = request.GET.get("store")
+    store = Store.objects.filter(id=store_id).first() if store_id else None
+
+    if request.user.role == 'manager':
+        if not store or store not in request.user.stores.all():
+            store = request.user.stores.first()
+
+    context = get_balance_sheet_context(store)
+    context.update({
+        'store': store,
+        'company': company,
+        'date': now().date(),
+    })
+
+    template = get_template("accounting/balance_sheet_pdf.html")
+    html = template.render(context)
+
+    response = HttpResponse(content_type="application/pdf")
+    response["Content-Disposition"] = "attachment; filename=balance_sheet.pdf"
+    pisa.CreatePDF(html, dest=response)
+
+    return response
+
+
+# from django.db.models import Sum, Q
+# from accounting.models import TransactionLine, Account
+# from inventory.models import Store
+
+@login_required
+def trial_balance_view(request):
+    user = request.user
+    selected_store_id = request.GET.get('store')
+
+    # Admins/superusers can access all stores
+    if user.is_superuser or user.role == 'admin':
+        allowed_stores = Store.objects.all()
+        show_all_option = True
+    else:
+        allowed_stores = user.stores.all()
+        show_all_option = False
+
+    active_store = None
+    if selected_store_id == 'all' and show_all_option:
+        # Admin selected 'All Stores'
+        transaction_lines = TransactionLine.objects.all()
+    else:
+        # Determine the active store (first or selected)
+        try:
+            active_store = allowed_stores.get(id=selected_store_id) if selected_store_id else allowed_stores.first()
+        except Store.DoesNotExist:
+            active_store = allowed_stores.first()
+
+        transaction_lines = TransactionLine.objects.filter(transaction__store=active_store)
+
+    # Group and sum per account
+    lines = (
+        transaction_lines
+        .values('account__name')
+        .annotate(
+            total_debit=Sum('debit'),
+            total_credit=Sum('credit')
+        )
+        .order_by('account__name')
+    )
+
+    total_debit = sum(item['total_debit'] or 0 for item in lines)
+    total_credit = sum(item['total_credit'] or 0 for item in lines)
+
+    return render(request, 'accounting/trial_balance.html', {
+        'lines': lines,
+        'total_debit': total_debit,
+        'total_credit': total_credit,
+        'active_store': active_store,
+        'stores': allowed_stores,
+        'show_all_option': show_all_option,
+        'selected_store_id': selected_store_id,
+    })
+
+# dashboard/views.py
+from django.contrib.auth.decorators import login_required
+from accounting.models import Notification
+@login_required
+def notifications_list(request):
+    notifications = request.user.notifications.order_by('-created_at')
+    return render(request, 'dashboard/notifications.html', {'notifications': notifications})
+
+
+# dashboard/views.py
+# from django.shortcuts import get_object_or_404, redirect
+# from accounting.models import Notification
+# from django.contrib.auth.decorators import login_required
+
+@login_required
+def notification_redirect(request, notification_id):
+    notification = get_object_or_404(Notification, id=notification_id, user=request.user)
+    
+    # Mark as read
+    notification.is_read = True
+    notification.save()
+
+    # Redirect to the target URL
+    if notification.url:
+        return redirect(notification.url)
+    else:
+        return redirect('dashboard:notifications_list')  # fallback
+
+
+@login_required
+def general_ledger_view(request):
+    form = GeneralLedgerForm(request.GET or None, request=request)  # ✅ Pass request here
+    lines = []
+    total_debit = total_credit = 0
+
+    user = request.user
+    is_admin = user.is_superuser or user.role == 'admin'
+    user_stores = user.stores.all()
+
+    if form.is_valid():
+        account = form.cleaned_data['account']
+        selected_store = form.cleaned_data['store']
+        start_date = form.cleaned_data['start_date']
+        end_date = form.cleaned_data['end_date']
+
+        qs = TransactionLine.objects.filter(account=account).select_related('transaction')
+
+        # 🏪 Store filter:
+        if is_admin:
+            if selected_store:
+                qs = qs.filter(transaction__store=selected_store)
+        else:
+            allowed_store_ids = user_stores.values_list('id', flat=True)
+            if selected_store and selected_store.id in allowed_store_ids:
+                qs = qs.filter(transaction__store=selected_store)
+            else:
+                qs = qs.filter(transaction__store__in=allowed_store_ids)
+
+        # 📅 Date filtering
+        if start_date:
+            qs = qs.filter(transaction__created_at__gte=start_date)
+        if end_date:
+            qs = qs.filter(transaction__created_at__lte=end_date)
+
+        qs = qs.order_by('transaction__created_at', 'id')
+
+        running_balance = 0
+        for line in qs:
+            running_balance += (line.debit or 0) - (line.credit or 0)
+            lines.append({
+                'date': line.transaction.created_at,
+                'description': line.transaction.description,
+                'debit': line.debit,
+                'credit': line.credit,
+                'balance': running_balance
+            })
+            total_debit += line.debit or 0
+            total_credit += line.credit or 0
+
+    return render(request, 'accounting/general_ledger.html', {
+        'form': form,
+        'lines': lines,
+        'total_debit': total_debit,
+        'total_credit': total_credit
+    })
+
+def build_customer_ledger(customer, from_date_str=None, to_date_str=None, user=None):
     from_date = parse_date_with_tz(from_date_str)
     to_date = parse_date_with_tz(to_date_str, end_of_day=True)
 
     invoices = Sale.objects.filter(customer=customer, sale_type='invoice')
     payments = CustomerPayment.objects.filter(customer=customer)
 
+    # 🔐 Restrict to user's stores if manager
+    if user and user.role == 'manager':
+        allowed_stores = user.stores.all()
+        invoices = invoices.filter(store__in=allowed_stores)
+        payments = payments.filter(transaction__store__in=allowed_stores)
+
+    # 📆 Apply date filters
     if from_date:
         invoices = invoices.filter(sale_date__gte=from_date)
         payments = payments.filter(created_at__gte=from_date)
@@ -332,11 +862,13 @@ def build_customer_ledger(customer, from_date_str=None, to_date_str=None):
         invoices = invoices.filter(sale_date__lt=to_date)
         payments = payments.filter(created_at__lt=to_date)
 
+    # 🧾 Combine entries
     invoices = invoices.annotate(entry_type=Value('Invoice'), entry_amount=F('total_amount'), date=F('sale_date'))
     payments = payments.annotate(entry_type=Value('Payment'), entry_amount=F('amount'), date=F('created_at'))
 
     transactions = sorted(chain(invoices, payments), key=lambda x: x.date)
 
+    # 🧮 Build running ledger
     running_balance = Decimal('0.00')
     ledger = []
 
@@ -359,6 +891,28 @@ def customer_list_with_balances(request):
     sort = request.GET.get('sort', '')
 
     customers = Customer.objects.all()
+
+    # 🔐 Restrict to manager's store(s)
+    if request.user.role == 'manager':
+        from django.db.models import OuterRef, Exists
+
+        # Get the stores the user has access to
+        store_ids = request.user.stores.values_list('id', flat=True)
+
+        # Limit customers to those with sales or payments in allowed stores
+        from django.db.models import OuterRef, Exists
+
+        store_ids = request.user.stores.values_list('id', flat=True)
+
+        customers = customers.annotate(
+            has_sales=Exists(
+                Sale.objects.filter(customer=OuterRef('pk'), store__in=store_ids)
+            ),
+            has_payments=Exists(
+                CustomerPayment.objects.filter(customer=OuterRef('pk'), transaction__store__in=store_ids)
+            )
+        ).filter(Q(has_sales=True) | Q(has_payments=True))
+
     if query:
         customers = customers.filter(
             Q(name__icontains=query) |
@@ -369,13 +923,17 @@ def customer_list_with_balances(request):
     customer_data = []
 
     for customer in customers:
-        total_invoiced = Sale.objects.filter(customer=customer, sale_type='invoice') \
-            .aggregate(total=Coalesce(Sum('total_amount'), Decimal('0.00')))['total']
+        # 🔁 Restrict sales and payments to manager’s stores
+        sales_qs = Sale.objects.filter(customer=customer, sale_type='invoice')
+        payments_qs = CustomerPayment.objects.filter(customer=customer)
 
-        total_paid = CustomerPayment.objects.filter(customer=customer) \
-            .aggregate(total=Coalesce(Sum('amount'), Decimal('0.00')))['total']
+        if request.user.role == 'manager':
+            sales_qs = sales_qs.filter(store__in=request.user.stores.all())
+            payments_qs = payments_qs.filter(transaction__store__in=request.user.stores.all())
 
-        balance = Decimal(total_invoiced) - Decimal(total_paid)
+        total_invoiced = sales_qs.aggregate(total=Coalesce(Sum('total_amount'), Decimal('0.00')))['total']
+        total_paid = payments_qs.aggregate(total=Coalesce(Sum('amount'), Decimal('0.00')))['total']
+        balance = total_invoiced - total_paid
 
         customer_data.append({
             'customer': customer,
@@ -384,7 +942,7 @@ def customer_list_with_balances(request):
             'balance': balance
         })
 
-    # ✅ Sorting logic
+    # 🔁 Sorting
     sort_map = {
         'balance_asc': ('balance', False),
         'balance_desc': ('balance', True),
@@ -410,10 +968,9 @@ def customer_ledger_view(request, customer_id):
     customer = get_object_or_404(Customer, pk=customer_id)
     from_date = request.GET.get('from')
     to_date = request.GET.get('to')
-    transaction_type = request.GET.get('type')  # e.g. 'Invoice', 'Payment'
-    
+    transaction_type = request.GET.get('type')
 
-    ledger, running_balance = build_customer_ledger(customer, from_date, to_date)
+    ledger, running_balance = build_customer_ledger(customer, from_date, to_date, user=request.user)
 
     if transaction_type:
         ledger = [entry for entry in ledger if entry['type'].lower() == transaction_type.lower()]
@@ -433,14 +990,13 @@ def customer_ledger_pdf(request, customer_id):
     customer = get_object_or_404(Customer, pk=customer_id)
     from_date = request.GET.get('from')
     to_date = request.GET.get('to')
-    transaction_type = request.GET.get('type')  # ✅ get the filter from query params
+    transaction_type = request.GET.get('type')
     company = CompanyProfile.objects.first()
 
-    ledger, running_balance = build_customer_ledger(customer, from_date, to_date)
+    ledger, running_balance = build_customer_ledger(customer, from_date, to_date, user=request.user)
 
     if transaction_type:
         ledger = [entry for entry in ledger if entry['type'].lower() == transaction_type.lower()]
-        # Optionally recalculate running balance (if shown in PDF)
         balance = Decimal('0.00')
         for entry in ledger:
             if entry['type'] == 'Invoice':
@@ -455,7 +1011,7 @@ def customer_ledger_pdf(request, customer_id):
         'final_balance': running_balance,
         'from': from_date,
         'to': to_date,
-        'type': transaction_type,  # ✅ Pass to template (optional)
+        'type': transaction_type,
         'company': company,
     })
 
@@ -494,19 +1050,20 @@ def account_ledger_view(request, slug):
     account = get_object_or_404(Account, slug=slug)
     user = request.user
 
-    # For managers, assume `user.store` gives their assigned store
-    user_store = getattr(user, 'store', None)
-
-    # Filter transaction lines based on store
+    # Base queryset
     transaction_lines = TransactionLine.objects.filter(account=account)
 
-    if user_store:
-        # Only include lines where the transaction belongs to the manager's store
-        transaction_lines = transaction_lines.filter(transaction__store=user_store)
+    # Multi-store filtering for managers
+    if not user.is_superuser and user.role == 'manager':
+        allowed_store_ids = user.stores.values_list('id', flat=True)
+        transaction_lines = transaction_lines.filter(transaction__store__in=allowed_store_ids)
 
-    transaction_lines = transaction_lines.select_related('transaction') \
-        .order_by('transaction__created_at', 'id')
+    # Add selects + ordering
+    transaction_lines = transaction_lines.select_related('transaction').order_by(
+        'transaction__created_at', 'id'
+    )
 
+    # Balance Calculation
     balance = Decimal(account.opening_balance or 0)
     history = []
 
@@ -517,15 +1074,14 @@ def account_ledger_view(request, slug):
             'description': line.transaction.description,
             'debit': line.debit,
             'credit': line.credit,
-            'balance': balance
+            'balance': balance,
+            'store': line.transaction.store.name if line.transaction.store else 'N/A',
         })
 
     return render(request, 'accounting/account_ledger.html', {
         'account': account,
         'history': history,
     })
-
-
 
 @login_required
 def receive_customer_payment(request):
@@ -545,7 +1101,7 @@ def receive_customer_payment(request):
                 destination_slug=destination_slug,
                 amount=payment.amount,
                 description=description,
-                store=request.user.store
+                store = request.user.get_active_store(request)
             )
 
             payment.transaction = txn
@@ -586,9 +1142,10 @@ def get_unpaid_invoices(request):
 def account_balances_view(request):
     user = request.user
 
-    # Admins see all; Managers see their store’s data only
-    if user.role == 'manager' and user.store:
-        balances = calculate_account_balances(store=user.store)
+    # For managers, calculate across all their stores
+    if user.role == 'manager':
+        stores = user.stores.all()
+        balances = calculate_account_balances(stores=stores)
     else:
         balances = calculate_account_balances()
 
@@ -655,10 +1212,9 @@ def profit_loss_report(request):
     preset = request.GET.get('preset')
     store_id = request.GET.get('store')
 
-    # Get selected store or default to user's assigned store
-    store = Store.objects.filter(id=store_id).first() if store_id else getattr(request.user, 'store', None)
+    store = get_user_allowed_store(request, store_id)
 
-    # Handle Preset Filters
+    # Date range
     if preset == 'this_month':
         start_date = date(today.year, today.month, 1)
         end_date = today
@@ -671,7 +1227,6 @@ def profit_loss_report(request):
         start_date = date(today.year, 1, 1)
         end_date = today
     else:
-        # Custom range from GET
         start = request.GET.get('start_date')
         end = request.GET.get('end_date')
         try:
@@ -681,15 +1236,17 @@ def profit_loss_report(request):
             start_date = date(today.year, today.month, 1)
             end_date = today
 
-    # ✅ Only now do we call the profit/loss function
     context = get_profit_loss_context(start_date, end_date, store=store)
 
-    # Add filter options to the context
-    context['stores'] = Store.objects.all()
-    context['selected_store_id'] = int(store_id) if store_id else None
+    # 🔒 Restrict store list
+    if request.user.is_superuser or request.user.role == 'admin':
+        context['stores'] = Store.objects.all()
+    else:
+        context['stores'] = request.user.stores.all()
+
+    context['selected_store_id'] = store.id if store else None
 
     return render(request, 'accounting/profit_loss_report.html', context)
-# adjust to your actual path
 
 @login_required
 def profit_loss_pdf_view(request):
@@ -704,14 +1261,7 @@ def profit_loss_pdf_view(request):
         messages.error(request, "Invalid date format. Use YYYY-MM-DD.")
         return redirect('accounting:profit_loss_report')
 
-    store = None
-    if store_id:
-        try:
-            store = Store.objects.get(id=store_id)
-        except Store.DoesNotExist:
-            pass
-    else:
-        store = getattr(request.user, 'store', None)
+    store = get_user_allowed_store(request, store_id)
 
     context = get_profit_loss_context(start_date, end_date, store)
     context.update({
@@ -745,7 +1295,7 @@ def profit_loss_detail_report(request):
     preset = request.GET.get('preset')
     store_id = request.GET.get('store')
 
-    # 🔁 Parse dates
+    # 🔁 Date Parsing
     if preset == 'this_month':
         start_date = date(today.year, today.month, 1)
         end_date = today
@@ -758,20 +1308,13 @@ def profit_loss_detail_report(request):
         start_date = date(today.year, 1, 1)
         end_date = today
     else:
-        start = request.GET.get('start_date')
-        end = request.GET.get('end_date')
-        start_date = parse_date_safe(start) or date(today.year, today.month, 1)
-        end_date = parse_date_safe(end) or today
+        start_date = parse_date_safe(request.GET.get('start_date')) or date(today.year, today.month, 1)
+        end_date = parse_date_safe(request.GET.get('end_date')) or today
 
-    # 🏬 Store filtering
-    store = None
-    if store_id:
-        try:
-            store = Store.objects.get(pk=store_id)
-        except Store.DoesNotExist:
-            store = None
+    # 🔐 Store access control
+    store = get_user_allowed_store(request, store_id)
 
-    # 📦 Sales data
+    # 📦 Sales
     sales_qs = SaleItem.objects.filter(sale__sale_date__date__range=(start_date, end_date))
     if store:
         sales_qs = sales_qs.filter(sale__store=store)
@@ -787,9 +1330,7 @@ def profit_loss_detail_report(request):
         .order_by('product__name')
     )
 
-    sales_data = []
-    total_sales = total_cost = total_profit = 0
-
+    sales_data, total_sales, total_cost, total_profit = [], 0, 0, 0
     for item in sales_qs:
         profit = item['total_sales'] - item['total_cost']
         sales_data.append({
@@ -803,28 +1344,19 @@ def profit_loss_detail_report(request):
         total_cost += item['total_cost'] or 0
         total_profit += profit or 0
 
-    # 💸 Expenses data
+    # 💸 Expenses
     expenses_qs = ExpenseEntry.objects.filter(date__range=(start_date, end_date))
     if store:
         expenses_qs = expenses_qs.filter(store=store)
 
-    expenses_qs = (
-        expenses_qs
-        .values('expense_account__name')
-        .annotate(total_expense=Sum('amount'))
-        .order_by('expense_account__name')
-    )
-
-    total_expenses = 0
-    expense_data = []
-    for exp in expenses_qs:
+    expense_data, total_expenses = [], 0
+    for exp in expenses_qs.values('expense_account__name').annotate(total_expense=Sum('amount')):
         expense_data.append({
             'category': exp['expense_account__name'],
             'amount': exp['total_expense'],
         })
         total_expenses += exp['total_expense'] or 0
 
-    # 🧮 Calculations
     gross_profit = total_sales - total_cost
     net_profit = gross_profit - total_expenses
 
@@ -833,8 +1365,8 @@ def profit_loss_detail_report(request):
         'end_date': end_date,
         'sales_data': sales_data,
         'expense_data': expense_data,
-        'stores': Store.objects.all(),
-        'selected_store_id': int(store_id) if store_id else None,
+        'stores': Store.objects.all() if request.user.is_superuser or request.user.role == 'admin' else request.user.stores.all(),
+        'selected_store_id': store.id if store else None,
         'totals': {
             'total_sales': total_sales,
             'total_cost': total_cost,
@@ -846,25 +1378,24 @@ def profit_loss_detail_report(request):
 
     return render(request, 'accounting/profit_loss_detail_report.html', context)
 
+
 @login_required
 def profit_loss_detail_pdf_view(request):
-    start = request.GET.get('start_date')
-    end = request.GET.get('end_date')
+    start_date = parse_date_safe(request.GET.get('start_date'))
+    end_date = parse_date_safe(request.GET.get('end_date'))
     store_id = request.GET.get('store')
-
-    start_date = parse_date_safe(start)
-    end_date = parse_date_safe(end)
 
     if not start_date or not end_date:
         return HttpResponse("Invalid dates provided", status=400)
 
-    store = get_object_or_404(Store, pk=store_id) if store_id else None
+    # 🔐 Restrict store access
+    store = get_user_allowed_store(request, store_id)
 
+    # 📦 Sales
     sales_qs = SaleItem.objects.filter(sale__sale_date__date__range=(start_date, end_date))
     if store:
         sales_qs = sales_qs.filter(sale__store=store)
 
-    # Annotate basic values (no Sum on expression)
     sales_qs = (
         sales_qs
         .values('product__name', 'unit_price', 'cost_price')
@@ -872,13 +1403,11 @@ def profit_loss_detail_pdf_view(request):
         .order_by('product__name')
     )
 
-    items = []
-    total_quantity = total_sales = total_cost = total_profit = 0
-
+    items, total_quantity, total_sales, total_cost, total_profit = [], 0, 0, 0, 0
     for item in sales_qs:
+        quantity = item['quantity'] or 0
         unit_price = item['unit_price'] or 0
         cost_price = item['cost_price'] or 0
-        quantity = item['quantity'] or 0
         total_sale = unit_price * quantity
         total_cogs = cost_price * quantity
         profit = total_sale - total_cogs
@@ -898,14 +1427,12 @@ def profit_loss_detail_pdf_view(request):
         total_cost += total_cogs
         total_profit += profit
 
-    # Expenses
+    # 💸 Expenses
     expense_qs = ExpenseEntry.objects.filter(date__range=(start_date, end_date))
     if store:
         expense_qs = expense_qs.filter(store=store)
 
-    expense_data = []
-    total_expenses = 0
-
+    expense_data, total_expenses = [], 0
     for e in expense_qs.values('expense_account__name').annotate(total=Sum('amount')):
         expense_data.append({
             'category': e['expense_account__name'],
@@ -937,6 +1464,7 @@ def profit_loss_detail_pdf_view(request):
 
     template = get_template('accounting/profit_loss_detail_pdf.html')
     html = template.render(context)
+
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="profit_loss_detail_report.pdf"'
     pisa.CreatePDF(html, dest=response)
