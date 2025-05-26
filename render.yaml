@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: inventrax
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn config.wsgi:application
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: DEBUG
+        value: False
+      - key: DATABASE_URL
+        fromDatabase:
+          name: inventrax-db
+          property: connectionString
+
+databases:
+  - name: inventrax-db

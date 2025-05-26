@@ -194,3 +194,101 @@ Trial Balance helps your system prove that accounting logic is working and can c
 
 P&L helps managers and owners understand performance and profitability.
 
+
+
+Excellent question — doing a **pre-deployment checklist** is like doing a pre-flight check before takeoff 🚀. Here’s what we want to make sure of **before launching Inventrax into production**:
+
+---
+
+## ✅ **Pre-Deployment Checklist for Inventrax**
+
+### 🔐 **1. Security & Authentication**
+
+* [ ] **Django `DEBUG = False`** in `settings.py`
+* [ ] Set a strong `SECRET_KEY` in production (not the one from development)
+* [ ] Use **`ALLOWED_HOSTS`** correctly (e.g. `['inventrax.com', '127.0.0.1']`)
+* [ ] Enforce **HTTPS** (use Let's Encrypt or SSL from host)
+* [ ] Disable Django’s built-in error pages (`DEBUG = False` handles this)
+
+---
+
+### 🛠️ **2. Static Files & Media**
+
+* [ ] Run: `python manage.py collectstatic`
+* [ ] Configure static & media file serving in Nginx or your hosting panel
+* [ ] Store media in a persistent volume (or S3 if scaling)
+
+---
+
+### 🔧 **3. Database**
+
+* [ ] PostgreSQL installed, running, and connected (`DATABASES` in `settings.py`)
+* [ ] Migrate all models: `python manage.py migrate`
+* [ ] Create a superuser for admin: `python manage.py createsuperuser`
+* [ ] Backups scheduled (even basic cron dump or pg\_dump)
+
+---
+
+### 🔄 **4. Code & Repository**
+
+* [ ] Final commit to main branch:
+
+  * Cleaned up unused code, tests, and console logs
+* [ ] `.env` or config file for:
+
+  * Secret keys, DB creds, API keys
+* [ ] `.gitignore` includes: `venv/`, `*.pyc`, `db.sqlite3`, `.env`, etc.
+
+---
+
+### 🧪 **5. Functionality Testing**
+
+* [ ] Login / Logout flow
+* [ ] Inventory CRUD
+* [ ] Purchases, Sales, Stock Transfers
+* [ ] PDF export works
+* [ ] Notification center triggers
+* [ ] Role-based access confirmed
+* [ ] Reports load without errors
+
+---
+
+### 📱 **6. UX Readiness**
+
+* [ ] Responsive on mobile (Bootstrap grid confirmed)
+* [ ] All forms functional & protected (CSRF token present)
+* [ ] Branded login page & footer (✅ done)
+* [ ] Basic favicon/logo in place
+
+---
+
+### 🧰 **7. Deployment Stack (e.g. Railway/Render/EC2)**
+
+* [ ] WSGI app configured (Gunicorn, Daphne, or ASGI)
+* [ ] Reverse proxy setup (Nginx or built-in Render proxy)
+* [ ] Environment variables added
+* [ ] App starts without error in logs
+* [ ] Admin interface accessible (`/admin/`)
+
+---
+
+### 🧹 **8. Optional Cleanups**
+
+* [ ] Create `requirements.txt`:
+
+  ```bash
+  pip freeze > requirements.txt
+  ```
+* [ ] Consider using `Procfile` if deploying on platforms like Render or Heroku
+
+---
+
+### 🔄 **9. GitHub Integration**
+
+* [ ] Repo connected (private or public)
+* [ ] Branches structured (e.g. main, dev)
+* [ ] Can pull updates into production
+
+---
+
+Want me to walk through these with you one by one or just start deployment with best defaults (and fix remaining bits after)?

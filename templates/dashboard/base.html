@@ -37,7 +37,7 @@
 </head>
 <body>
     <div class="sidebar">
-        <h5>Inventory System</h5>
+        <h5>IIS Software</h5>
         <nav class="nav flex-column">
 
             <!-- Dashboard -->
@@ -184,8 +184,20 @@
         {% block content %}
         <!-- Page content goes here -->
         {% endblock %}
+        {% load tz %}
+{% now "Y" as current_year %}
+<footer class="text-center text-muted py-3 mt-5 border-top bg-light">
+  <small>
+    &copy; {{ current_year }} Invicta Technologies Limited. All rights reserved. —
+    <a href="https://www.facebook.com/nbbibrahim" target="_blank" class="text-decoration-none">Website</a>
+  </small>
+</footer>
+
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    
 </body>
+
 </html>

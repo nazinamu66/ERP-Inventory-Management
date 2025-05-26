@@ -38,6 +38,8 @@ This resets everything (users, transactions, products, etc.) and sets up a fresh
 Then:
 
 python manage.py createsuperuser
+to get requrements
+pip freeze > requirements.txt
 
 In shell
 python manage.py shell  
