@@ -109,26 +109,30 @@
             {% endif %}
 
             <!-- Reports -->
-            <!-- In base.html inside sidebar nav -->
-            <a class="nav-link" data-bs-toggle="collapse" href="#reportsMenu" role="button" aria-expanded="false" aria-controls="reportsMenu">
-                Reports
-            </a>
-            <div class="collapse" id="reportsMenu">
-                <div class="nav flex-column ms-3">
-                    <a class="nav-link" href="{% url 'inventory:sale_list' %}?report=true">Sales Report</a>
-                    <a class="nav-link" href="{% url 'inventory:inventory_report' %}">Inventory Report</a>
-                    <a class="nav-link" href="{% url 'inventory:purchase_order_list' %}">Purchase Orders</a>
-                    <a class="nav-link" href="{% url 'accounting:expense_history' %}"> Expense History</a>
-                    <a class="nav-link" href="{% url 'accounting:profit_loss_report' %}">📊 Profit & Loss</a>
-                    <a class="nav-link" href="{% url 'accounting:profit_loss_detail_report' %}">P&L Detail</a>
-                    <a class="nav-link" href="{% url 'accounting:trial_balance' %}"> 🧾 Trial Balance </a>
-                    <a class="nav-link" href="{% url 'accounting:general_ledger' %}">📘 General Ledger</a>
-                    <a class="nav-link" href="{% url 'accounting:balance_sheet' %}">📊 Balance Sheet</a> 
-                    <a class="nav-link" href="{% url 'accounting:customer_aging_report' %}">Customer Aging Report</a>
-                   
-                </div>
-            </div>
-            <!-- Accounting Menu -->
+<a class="nav-link" data-bs-toggle="collapse" href="#reportsMenu" role="button" aria-expanded="false" aria-controls="reportsMenu">
+    Reports
+</a>
+<div class="collapse" id="reportsMenu">
+  <div class="nav flex-column ms-3">
+    
+    <!-- Visible to all roles who have access to sales/inventory -->
+    <a class="nav-link" href="{% url 'inventory:sale_list' %}?report=true">Sales Report</a>
+    <a class="nav-link" href="{% url 'inventory:inventory_report' %}">Inventory Report</a>
+    <a class="nav-link" href="{% url 'inventory:purchase_order_list' %}">Purchase Orders</a>
+    <a class="nav-link" href="{% url 'accounting:expense_history' %}">Expense History</a>
+    <a class="nav-link" href="{% url 'accounting:customer_aging_report' %}">Customer Aging Report</a>
+
+    {% if request.user.is_superuser or request.user.role in 'admin accountant manager' %}
+      <a class="nav-link" href="{% url 'accounting:profit_loss_report' %}">📊 Profit & Loss</a>
+      <a class="nav-link" href="{% url 'accounting:profit_loss_detail_report' %}">📊 P&L Detail</a>
+      <a class="nav-link" href="{% url 'accounting:trial_balance' %}">🧾 Trial Balance</a>
+      <a class="nav-link" href="{% url 'accounting:general_ledger' %}">📘 General Ledger</a>
+      <a class="nav-link" href="{% url 'accounting:balance_sheet' %}">📊 Balance Sheet</a>
+    {% endif %}
+    
+  </div>
+</div>
+        <!-- Accounting Menu -->
             {% if request.user.role in 'accountant admin manager' or request.user.is_superuser %}
             <a class="nav-link" data-bs-toggle="collapse" href="#accountingMenu">Accounting</a>
             <div class="collapse" id="accountingMenu">

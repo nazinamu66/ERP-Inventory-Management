@@ -585,9 +585,11 @@ def supplier_ledger_pdf(request, supplier_id):
     response['Content-Disposition'] = f'filename=supplier_ledger_{supplier.id}.pdf'
     return response
 
-
+from django.http import HttpResponseForbidden
 @login_required
 def balance_sheet_view(request):
+    if not request.user.is_superuser and request.user.role not in ['admin', 'manager']:
+        return HttpResponseForbidden("You are not allowed to view this report.")
     user = request.user
     store_id = request.GET.get('store')
     as_of_date = parse_date_safe(request.GET.get('date')) or now().date()
@@ -726,6 +728,8 @@ def balance_sheet_pdf_view(request):
 
 @login_required
 def trial_balance_view(request):
+    if not request.user.is_superuser and request.user.role not in ['admin', 'manager']:
+        return HttpResponseForbidden("You are not allowed to view this report.")
     user = request.user
     selected_store_id = request.GET.get('store')
 
@@ -805,6 +809,8 @@ def notification_redirect(request, notification_id):
 
 @login_required
 def general_ledger_view(request):
+    if not request.user.is_superuser and request.user.role not in ['admin', 'manager']:
+        return HttpResponseForbidden("You are not allowed to view this report.")
     form = GeneralLedgerForm(request.GET or None, request=request)  # ✅ Pass request here
     lines = []
     total_debit = total_credit = 0
@@ -1227,6 +1233,8 @@ def parse_date_safe(date_str):
 
 @login_required
 def profit_loss_report(request):
+    if not request.user.is_superuser and request.user.role not in ['admin', 'manager']: #if not one of the users no kallo
+        return HttpResponseForbidden("You are not allowed to view this report.")
     today = now().date()
     preset = request.GET.get('preset')
     store_id = request.GET.get('store')
@@ -1310,6 +1318,8 @@ def parse_date_safe(date_str):
 
 @login_required
 def profit_loss_detail_report(request):
+    if not request.user.is_superuser and request.user.role not in ['admin', 'manager']:
+        return HttpResponseForbidden("You are not allowed to view this report.")
     today = now().date()
     preset = request.GET.get('preset')
     store_id = request.GET.get('store')
