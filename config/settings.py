@@ -21,20 +21,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-import os
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'unsafe-dev-key')  # replace fallback before deploy
+SECRET_KEY = 'django-insecure-5y_(hl)7c3$h4wyy81(h73x9v8anro(m_&-xfp$-92dm7ks-ai'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'False') == 'True'
-
-# ALLOWED_HOSTS = ['.onrender.com', 'localhost', '127.0.0.1', '192.168.1.234']  # will update after deployment
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
 # ERPNext API Credentials
-# ERP_API_URL = "https://nazinamu66.erpnext.com"
-# ERP_API_KEY = "6938366d9069054"
-# ERP_API_SECRET = "c60a6c71952e773"
+ERP_API_URL = "https://nazinamu66.erpnext.com"
+ERP_API_KEY = "6938366d9069054"
+ERP_API_SECRET = "c60a6c71952e773"
 
 
 # Application definition
@@ -53,7 +50,6 @@ INSTALLED_APPS = [
 
 
 
-
     # Our Apps
     "inventory",
     "users",
@@ -62,7 +58,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -94,23 +89,15 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'erp_inventory',  # Your database name
-#         'USER': 'capo',           # Your PostgreSQL username
-#         'PASSWORD': 'Shatuwa66.', # Your PostgreSQL password
-#         'HOST': 'localhost',
-#         'PORT': '5432',           # Default PostgreSQL port
-#     }
-# }
-
-import dj_database_url
-
 DATABASES = {
-    'default': dj_database_url.config(
-        default=os.getenv("DATABASE_URL")  # Render will inject this
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'erp_inventory',  # Your database name
+        'USER': 'capo',           # Your PostgreSQL username
+        'PASSWORD': 'Shatuwa66.', # Your PostgreSQL password
+        'HOST': 'localhost',
+        'PORT': '5432',           # Default PostgreSQL port
+    }
 }
 
 
@@ -153,8 +140,6 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-
 
 
 # Default primary key field type
@@ -171,9 +156,6 @@ MEDIA_URL = '/media/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 
 import os
-
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
 
 # MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

@@ -964,14 +964,20 @@ def sale_receipt_pdf(request, sale_id):
 def sale_detail_view(request, pk):
     sale = get_object_or_404(Sale.objects.select_related('customer', 'store', 'sold_by'), pk=pk)
     items = sale.items.select_related('product').all()
-    total_profit = sum(item.profit for item in sale.items.all())
+    total_profit = sum(item.profit for item in items)
 
+    user = request.user
+    # 👇 Only allow superusers or managers assigned to the sale's store to see profit
+    can_view_profit = (
+        user.is_superuser or
+        (user.role == 'manager' and sale.store in user.stores.all())
+    )
 
     return render(request, 'dashboard/sale_detail.html', {
         'sale': sale,
         'items': items,
         'total_profit': total_profit,
-
+        'can_view_profit': can_view_profit,
     })
 
 

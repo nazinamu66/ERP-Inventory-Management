@@ -36,7 +36,9 @@
       <th>Qty</th>
       <th>Unit Price</th>
       <th>Subtotal</th>
-      <th>Profit</th>  <!-- ✅ New column -->
+      {% if can_view_profit %}
+        <th>Profit</th>
+      {% endif %}
     </tr>
   </thead>
   <tbody>
@@ -47,10 +49,12 @@
       <td>{{ item.quantity }}</td>
       <td>₦{{ item.unit_price|floatformat:2 }}</td>
       <td>₦{{ item.subtotal|floatformat:2 }}</td>
-      <td>₦{{ item.profit|floatformat:2 }}</td> <!-- ✅ Show profit -->
+      {% if can_view_profit %}
+        <td>₦{{ item.profit|floatformat:2 }}</td>
+      {% endif %}
     </tr>
     {% endfor %}
-  
+  </tbody>
 </table>
 
 <hr>
