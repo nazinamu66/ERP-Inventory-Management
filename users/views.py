@@ -423,9 +423,16 @@ def inventory_dashboard(request):
 
 @role_required(['sales'])
 def sales_dashboard(request):
+    from datetime import timedelta
+    from django.utils.timezone import now
+    from inventory.models import Sale, SaleItem
+    from django.db.models import Sum, F
+    from collections import defaultdict
+
     user = request.user
     today = now().date()
 
+    # ✅ Sales today
     today_sales = (
         Sale.objects
         .filter(sale_date__date=today, sold_by=user)
@@ -434,9 +441,7 @@ def sales_dashboard(request):
 
     total_sales_count = today_sales.count()
     total_sales_value = today_sales.aggregate(total=Sum('total_amount'))['total'] or 0
-    total_items_sold = SaleItem.objects.filter(
-        sale__in=today_sales
-    ).aggregate(qty=Sum('quantity'))['qty'] or 0
+    total_items_sold = SaleItem.objects.filter(sale__in=today_sales).aggregate(qty=Sum('quantity'))['qty'] or 0
 
     recent_items = (
         SaleItem.objects
@@ -445,8 +450,26 @@ def sales_dashboard(request):
         .order_by('-sale__sale_date')[:10]
     )
 
-    profit = sum(item.unit_price - item.cost_price for item in recent_items)  # or item.profit if added
+    # 📈 Sales trend (past 7 days)
+    sales_trend_data = []
+    sales_trend_labels = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        label = day.strftime('%a')  # Mon, Tue...
+        count = SaleItem.objects.filter(sale__sale_date__date=day, sale__sold_by=user).aggregate(qty=Sum('quantity'))['qty'] or 0
+        sales_trend_labels.append(label)
+        sales_trend_data.append(count)
 
+    # 🏆 Top 5 products sold by this user (past 7 days)
+    recent_sales = SaleItem.objects.filter(
+        sale__sold_by=user,
+        sale__sale_date__date__gte=today - timedelta(days=7)
+    ).values('product__name').annotate(
+        total_qty=Sum('quantity')
+    ).order_by('-total_qty')[:5]
+
+    top_products_labels = [item['product__name'] for item in recent_sales]
+    top_products_data = [item['total_qty'] for item in recent_sales]
 
     return render(request, 'dashboard/sales.html', {
         'today_sales': today_sales,
@@ -454,10 +477,12 @@ def sales_dashboard(request):
         'total_sales_value': total_sales_value,
         'total_items_sold': total_items_sold,
         'recent_items': recent_items,
-        'total_profit': profit
-
+        'today': today,
+        'sales_trend_labels': sales_trend_labels,
+        'sales_trend_data': sales_trend_data,
+        'top_products_labels': top_products_labels,
+        'top_products_data': top_products_data,
     })
-
 
 @role_required(['admin', 'manager', 'staff', 'clerk', 'sales'])
 def default_dashboard(request):

@@ -3,7 +3,7 @@
 {% block content %}
 
 <h3>Welcome, {{ request.user.username }}</h3>
-<p class="text-muted">Date: {{ today_sales.0.sale_date|date:"Y-m-d" }}</p>
+<p class="text-muted">Date: {{ today|date:"Y-m-d" }}</p>
 
 <div class="row mb-4">
     <div class="col-md-4">
@@ -27,13 +27,31 @@
             <div class="card-body">
                 <h6 class="card-title">Revenue</h6>
                 <p class="fs-4">₦{{ total_sales_value|floatformat:2 }}</p>
-                <p><strong>Total Profit Today:</strong> ₦{{ total_profit|floatformat:2 }}</p>
-
             </div>
         </div>
     </div>
 </div>
 
+<div class="row">
+    <div class="col-6 mb-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">📊 Sales Trend (Last 7 Days)</h5>
+          <canvas id="salesTrendChart" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+  
+    <div class="col-6 mb-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">🏆 Top Selling Products</h5>
+          <canvas id="topProductsChart" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  
 <h5>Recent Items Sold</h5>
 {% if recent_items %}
 <table class="table table-striped">
@@ -59,5 +77,52 @@
 {% else %}
 <p class="text-muted">No recent sales.</p>
 {% endif %}
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const salesTrendData = {{ sales_trend_data|safe }};
+    const salesTrendLabels = {{ sales_trend_labels|safe }};
+    const topProductsLabels = {{ top_products_labels|safe }};
+    const topProductsData = {{ top_products_data|safe }};
+
+    new Chart(document.getElementById('salesTrendChart'), {
+        type: 'line',
+        data: {
+            labels: salesTrendLabels,
+            datasets: [{
+                label: 'Items Sold',
+                data: salesTrendData,
+                fill: true,
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    new Chart(document.getElementById('topProductsChart'), {
+        type: 'bar',
+        data: {
+            labels: topProductsLabels,
+            datasets: [{
+                label: 'Units Sold',
+                data: topProductsData,
+                backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: { legend: { display: false } }
+        }
+    });
+</script>
 
 {% endblock %}
