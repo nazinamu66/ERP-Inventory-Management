@@ -586,14 +586,13 @@ def supplier_ledger_pdf(request, supplier_id):
     return response
 
 
-
-
 @login_required
 def balance_sheet_view(request):
     user = request.user
     store_id = request.GET.get('store')
     as_of_date = parse_date_safe(request.GET.get('date')) or now().date()
 
+    # 1. Store selection logic
     if user.is_superuser or user.role == 'admin':
         store_qs = Store.objects.all()
         store = Store.objects.filter(id=store_id).first() if store_id else None
@@ -601,14 +600,21 @@ def balance_sheet_view(request):
         store_qs = user.stores.all()
         store = user.stores.filter(id=store_id).first() if store_id else user.stores.first()
 
-    if not store:
+    if not store and not (user.is_superuser or user.role == 'admin'):
         messages.error(request, "No valid store selected.")
-        return redirect('dashboard')
+        return redirect('inventory:dashboard')
 
-    # 🔎 Pull account balances from TransactionLines
+    # 2. Smart store filter (None means "all" for admin)
+    store_filter = Q()
+    if store:
+        store_filter = Q(transaction__store=store)
+    elif user.is_superuser or user.role == 'admin':
+        store_filter = Q(transaction__store__in=store_qs)
+
+    # 3. Pull accounting data
     lines = (
         TransactionLine.objects
-        .filter(transaction__store=store, transaction__created_at__date__lte=as_of_date)
+        .filter(store_filter, transaction__created_at__date__lte=as_of_date)
         .values('account__name', 'account__type')
         .annotate(
             total_debit=Sum('debit'),
@@ -642,18 +648,30 @@ def balance_sheet_view(request):
             equity.append(entry)
             totals['equity'] += balance
 
-    # 🧠 Retained Earnings (Net Profit)
-    sales = SaleItem.objects.filter(sale__store=store, sale__sale_date__date__lte=as_of_date).aggregate(
+    # 4. Retained Earnings Calculation
+    sales_filter = Q(sale__sale_date__date__lte=as_of_date)
+    if store:
+        sales_filter &= Q(sale__store=store)
+    elif user.is_superuser or user.role == 'admin':
+        sales_filter &= Q(sale__store__in=store_qs)
+
+    sales = SaleItem.objects.filter(sales_filter).aggregate(
         total_sales=Sum(F('unit_price') * F('quantity'), output_field=DecimalField(max_digits=20, decimal_places=2)),
         total_cost=Sum(F('cost_price') * F('quantity'), output_field=DecimalField(max_digits=20, decimal_places=2))
     )
     income = (sales['total_sales'] or 0) - (sales['total_cost'] or 0)
 
-    expenses = ExpenseEntry.objects.filter(store=store, date__lte=as_of_date).aggregate(
+    expenses_filter = Q(date__lte=as_of_date)
+    if store:
+        expenses_filter &= Q(store=store)
+    elif user.is_superuser or user.role == 'admin':
+        expenses_filter &= Q(store__in=store_qs)
+
+    expenses = ExpenseEntry.objects.filter(expenses_filter).aggregate(
         total_expenses=Sum('amount')
     )
-    net_profit = income - (expenses['total_expenses'] or 0)
 
+    net_profit = income - (expenses['total_expenses'] or 0)
     equity.append({'name': 'Retained Earnings', 'balance': net_profit})
     totals['equity'] += net_profit
 
@@ -663,9 +681,10 @@ def balance_sheet_view(request):
         'equity': equity,
         'totals': totals,
         'stores': store_qs,
-        'selected_store_id': store.id,
+        'selected_store_id': store.id if store else "",
         'as_of_date': as_of_date,
     })
+
 
 # from django.template.loader import get_template
 # from django.http import HttpResponse

@@ -1,4 +1,6 @@
 {% extends 'dashboard/base.html' %}
+{% block title %}Balance Sheet{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
   <h3>📊 Balance Sheet</h3>
@@ -6,10 +8,13 @@
     <div class="col-md-4">
       <label>Store:</label>
       <select name="store" class="form-select">
+        {% if request.user.is_superuser or request.user.role == "admin" %}
+          <option value="">All Stores</option>
+        {% endif %}
         {% for s in stores %}
-          <option value="{{ s.id }}" {% if s.id == selected_store_id %}selected{% endif %}>{{ s.name }}</option>
+          <option value="{{ s.id }}" {% if s.id|stringformat:"s" == selected_store_id|stringformat:"s" %}selected{% endif %}>{{ s.name }}</option>
         {% endfor %}
-      </select>
+      </select>       
     </div>
     <div class="col-md-3">
       <label>As of date:</label>
