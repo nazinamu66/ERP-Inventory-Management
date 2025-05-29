@@ -2,8 +2,9 @@ services:
   - type: web
     name: inventrax
     env: python
-    buildCommand: pip install -r requirements.txt
-          python manage.py collectstatic --noinput
+    buildCommand: 
+      pip install -r requirements.txt
+      python manage.py collectstatic --noinput
     startCommand: gunicorn config.wsgi:application
     envVars:
       - key: DJANGO_SECRET_KEY
