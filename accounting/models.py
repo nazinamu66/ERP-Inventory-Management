@@ -128,6 +128,7 @@ class ExpenseEntry(models.Model):
     description = models.TextField(blank=True)
     date = models.DateField()
     created_at = models.DateTimeField(auto_now_add=True)
+    purchase_orders = models.ManyToManyField('inventory.PurchaseOrder', blank=True, related_name='expenses')
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
 
     user = models.ForeignKey(

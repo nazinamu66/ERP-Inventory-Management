@@ -1,4 +1,6 @@
 {% load static %}
+{% load formatting %}
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -43,12 +45,12 @@
 
   <!-- ✅ Report Table -->
   <table>
-    <tr><th>Description</th><th class="text-end">Amount (₦)</th></tr>
-    <tr><td>Revenue</td><td class="text-end">{{ revenue|floatformat:2 }}</td></tr>
-    <tr><td>Cost of Goods Sold (COGS)</td><td class="text-end">{{ cogs|floatformat:2 }}</td></tr>
-    <tr class="summary"><td>Gross Profit</td><td class="text-end">{{ gross_profit|floatformat:2 }}</td></tr>
-    <tr><td>Expenses</td><td class="text-end">{{ expenses|floatformat:2 }}</td></tr>
-    <tr class="summary"><td>Net Profit</td><td class="text-end">{{ net_profit|floatformat:2 }}</td></tr>
+    <tr><th>Description</th><th class="text-end">Amount (N)</th></tr>
+    <tr><td>Revenue</td><td class="text-end">{{ revenue|money }}</td></tr>
+    <tr><td>Cost of Goods Sold (COGS)</td><td class="text-end">{{ cogs|money }}</td></tr>
+    <tr class="summary"><td>Gross Profit</td><td class="text-end">{{ gross_profit|money }}</td></tr>
+    <tr><td>Expenses</td><td class="text-end">{{ expenses|money }}</td></tr>
+    <tr class="summary"><td>Net Profit</td><td class="text-end">{{ net_profit|money }}</td></tr>
   </table>
 
   <p style="margin-top: 30px;">Generated on {{ now|date:"Y-m-d H:i" }}</p>

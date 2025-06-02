@@ -48,15 +48,180 @@ from django.utils import timezone
 
 
 
+@login_required
+def convert_quotation_to_invoice(request, quotation_id):
+    quotation = get_object_or_404(Quotation.objects.prefetch_related('items'), id=quotation_id)
+
+    # 🚫 Prevent unauthorized access
+    if not request.user.is_superuser and quotation.store not in request.user.stores.all():
+        return HttpResponseForbidden("You do not have permission to convert this quotation.")
+
+    try:
+        with transaction.atomic():
+            # ✅ Create invoice (Sale object)
+            sale = Sale.objects.create(
+                customer=quotation.customer,
+                store=quotation.store,
+                sale_type='invoice',
+                sold_by=request.user,
+                payment_status='unpaid',
+                total_amount=quotation.total_amount(),  # ✅ Call the method
+                amount_paid=Decimal('0.00'),
+                balance_due=quotation.total_amount(),    # ✅ Also call method
+            )
+
+            # ✅ Assign receipt number
+            sale.receipt_number = f"INV-{sale.id:06d}"
+            sale.save(update_fields=["receipt_number"])
+
+            total_cogs = Decimal('0.00')
+
+            for item in quotation.items.all():
+                stock_entry = Stock.objects.filter(product=item.product, store=quotation.store).first()
+
+                if not stock_entry or stock_entry.quantity < item.quantity:
+                    raise ValueError(f"Insufficient stock for {item.product.name}")
+
+                stock_entry.quantity -= item.quantity
+                stock_entry.save(update_fields=["quantity"])
+
+                SaleItem.objects.create(
+                    sale=sale,
+                    product=item.product,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    cost_price=stock_entry.cost_price or 0
+                )
+
+                total_cogs += item.quantity * (stock_entry.cost_price or 0)
+
+            # ✅ Record transactions
+            revenue_txn = record_transaction_by_slug(
+                source_slug='sales-revenue',
+                destination_slug='accounts-receivable',
+                amount=sale.total_amount,
+                store=sale.store,
+                description=f"Invoice - {sale.receipt_number}"
+            )
+
+            cogs_txn = record_transaction_by_slug(
+                source_slug='inventory-assets',
+                destination_slug='cost-of-goods-sold',
+                amount=total_cogs,
+                store=sale.store,
+                description=f"COGS for {sale.receipt_number}"
+            )
+
+            sale.revenue_transaction = revenue_txn
+            sale.cogs_transaction = cogs_txn
+            sale.transaction = revenue_txn
+            sale.save(update_fields=["revenue_transaction", "cogs_transaction", "transaction"])
+
+            # 🔍 Audit Log
+            AuditLog.objects.create(
+                user=request.user,
+                action='quotation_to_invoice',
+                description=f"Converted quotation #{quotation.id} to invoice {sale.receipt_number}",
+                store=sale.store
+            )
+            
+            quotation.converted_sale = sale
+            quotation.save(update_fields=['converted_sale'])
+
+            messages.success(request, f"Quotation converted to Invoice {sale.receipt_number}.")
+            return redirect('inventory:sale_detail', sale.id)
+
+    except Exception as e:
+        logger.error(f"❌ Conversion failed: {e}")
+        messages.error(request, f"Failed to convert quotation: {e}")
+        return redirect('inventory:quotation_detail', quotation.id)
+    
+# # views.py
+
+@login_required
+def quotation_edit(request, quotation_id):
+    quotation = get_object_or_404(Quotation.objects.prefetch_related('items'), id=quotation_id)
+
+    if not request.user.is_superuser and quotation.store not in request.user.stores.all():
+        return HttpResponseForbidden("Access Denied: You don't have permission to edit this quotation.")
+
+    if request.method == 'POST':
+        form = QuotationForm(request.POST, instance=quotation)
+        formset = QuotationItemFormSet(request.POST, instance=quotation)
+
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                form.save()
+                formset.save()
+
+                AuditLog.objects.create(
+                    user=request.user,
+                    action='quotation_edit',
+                    description=f"Edited Quotation #{quotation.id}",
+                    store=quotation.store
+                )
+
+                messages.success(request, f"Quotation #{quotation.id} updated successfully.")
+                return redirect('inventory:quotation_detail', quotation.id)
+    else:
+        form = QuotationForm(instance=quotation)
+        formset = QuotationItemFormSet(instance=quotation)
+
+    return render(request, 'dashboard/quotation_form.html', {
+        'form': form,
+        'formset': formset,
+        'editing': True,
+        'quotation': quotation,
+    })
+
+
+# views.py
+from django.views.decorators.http import require_POST
+
+@login_required
+@require_POST
+def quotation_delete(request, quotation_id):
+    quotation = get_object_or_404(Quotation, id=quotation_id)
+
+    if not request.user.is_superuser and quotation.store not in request.user.stores.all():
+        return HttpResponseForbidden("Access Denied: You don't have permission to delete this quotation.")
+
+    quotation.delete()
+
+    AuditLog.objects.create(
+        user=request.user,
+        action='quotation_delete',
+        description=f"Deleted Quotation #{quotation.id}",
+        store=quotation.store
+    )
+
+    messages.success(request, f"Quotation #{quotation_id} deleted successfully.")
+    return redirect('inventory:quotation_list')
+
+
 
 @login_required
 def customer_create(request):
-    next_url = request.GET.get('next', request.path)  # default to self
+    next_url = request.GET.get('next', request.path)
 
     if request.method == 'POST':
         form = CustomerForm(request.POST)
         if form.is_valid():
-            form.save()
+            customer = form.save(commit=False)
+            customer.created_by = request.user
+            customer.save()
+
+            # ✅ Determine store (only if user has one)
+            user_store = request.user.stores.first() if hasattr(request.user, 'stores') else None
+
+            # ✅ Audit log
+            AuditLog.objects.create(
+                user=request.user,
+                action='create_customer',
+                store=user_store,
+                description=f"{request.user.username} created customer '{customer.name}'"
+            )
+
             messages.success(request, "Customer added successfully.")
             return HttpResponseRedirect(next_url)
     else:
@@ -64,8 +229,9 @@ def customer_create(request):
 
     return render(request, 'dashboard/customer_form.html', {
         'form': form,
-        'next': next_url,  # pass this to template for the form action
+        'next': next_url,
     })
+
 
 
 @login_required
@@ -99,41 +265,46 @@ from django.template.loader import get_template
 from weasyprint import HTML
 from django.http import HttpResponse, HttpResponseForbidden
 
+# utils.py or inline
+from django.conf import settings
+import os
+
+def link_callback(uri, rel):
+    if uri.startswith(settings.MEDIA_URL):
+        path = os.path.join(settings.MEDIA_ROOT, uri.replace(settings.MEDIA_URL, ""))
+        return path
+    return uri
+
+
+
 @login_required
-def export_po_receipt_pdf(request, po_id):
-    po = get_object_or_404(
-        PurchaseOrder.objects.prefetch_related('items__product', 'supplier', 'store'),
-        pk=po_id
-    )
+def export_po_pdf(request, po_id):
+    po = get_object_or_404(PurchaseOrder, pk=po_id)
 
-    # ✅ Access Control: Only allow access to own stores
-    if not request.user.is_superuser:
-        if not po.store:
-            return HttpResponse("Error: This PO does not have a store assigned yet.", status=400)
+    if not request.user.is_superuser and request.user.role != 'admin' and request.user != po.created_by:
+        return render(request, 'errors/permission_denied.html', status=403)
 
-        if not request.user.stores.filter(id=po.store_id).exists():
-            return HttpResponseForbidden("Access Denied: You don't have permission to access this purchase order.")
+    goods_total = sum(item.subtotal for item in po.items.all())
+    expenses_qs = ExpenseEntry.objects.filter(purchase_orders=po)
+    expenses_total = expenses_qs.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+    grand_total = goods_total + expenses_total
 
-    total = sum(Decimal(item.subtotal) for item in po.items.all())
-    company = CompanyProfile.objects.first()
+    company = po.store.company_profile if po.store and po.store.company_profile else CompanyProfile.objects.first()
 
-    context = {
+    template = get_template('pdf/po_receipt.html')
+    html = template.render({
         'po': po,
-        'total': total,
-        'store': po.store,
-        'received_by': request.user,
+        'goods_total': goods_total,
+        'expenses_total': expenses_total,
+        'grand_total': grand_total,
         'company': company,
-    }
+    }, request=request)
 
-    html_template = get_template('pdf/po_receipt.html')
-    html_content = html_template.render(context)
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="PO-{po.id}.pdf"'
 
-    pdf_file = HTML(string=html_content, base_url=request.build_absolute_uri()).write_pdf()
-
-    response = HttpResponse(pdf_file, content_type='application/pdf')
-    response['Content-Disposition'] = f'filename="PO-{po.id}-receipt.pdf"'
+    pisa.CreatePDF(html, dest=response, link_callback=link_callback)
     return response
-
 
 
 @login_required
@@ -274,45 +445,30 @@ def redirect_dashboard(request):
     else:
         return redirect('default_dashboard')
 
-
-
-@login_required
-def export_po_pdf(request, po_id):
-    po = get_object_or_404(PurchaseOrder, pk=po_id)
-
-    if not request.user.is_superuser and request.user.role != 'admin' and request.user != po.created_by:
-        return render(request, 'errors/permission_denied.html', status=403)
-
-    total = sum(item.subtotal for item in po.items.all())
-    company = CompanyProfile.objects.first()
-
-    template = get_template('dashboard/purchase_order_pdf.html')
-    html = template.render({'po': po, 'total': total, 'company': company})
-
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="PO-{po.id}.pdf"'
-
-    pisa.CreatePDF(html, dest=response)
-    return response
-
+from accounting.models import  ExpenseEntry
+from django.db.models import Sum
+from decimal import Decimal
 
 @login_required
 def purchase_order_detail(request, po_id):
     po = get_object_or_404(
-        PurchaseOrder.objects.select_related('supplier', 'created_by').prefetch_related('items__product'),
-        pk=po_id
+        PurchaseOrder.objects.prefetch_related('items__product', 'expenses'),
+        id=po_id
     )
 
-    if not request.user.is_superuser and request.user.role != 'admin' and request.user != po.created_by:
-        messages.error(request, "You're not authorized to view this Purchase Order.")
-        return render(request, 'errors/permission_denied.html', status=403)
+    goods_total = sum(item.subtotal for item in po.items.all())
 
-    # ✅ Calculate total from item subtotals
-    total = sum(item.subtotal for item in po.items.all())
+    expenses_total = po.expenses.aggregate(
+        total=Sum('amount')
+    )['total'] or Decimal('0.00')
+
+    grand_total = goods_total + expenses_total
 
     return render(request, 'dashboard/purchase_order_detail.html', {
         'po': po,
-        'total': total
+        'goods_total': goods_total,
+        'expenses_total': expenses_total,
+        'grand_total': grand_total,
     })
 
 
@@ -642,21 +798,6 @@ def export_purchase_orders_csv(request):
     return response
 
 
-@login_required
-def export_purchase_orders_pdf(request):
-    orders = filter_purchase_orders(request)
-
-    context = {
-        'orders': orders,
-        'user': request.user,
-    }
-    template = get_template('pdf/purchase_orders_report_pdf.html')
-    html = template.render(context)
-
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="purchase_orders_{now().strftime("%Y%m%d")}.pdf"'
-    pisa.CreatePDF(html, dest=response)
-    return response
 
 
 def filter_purchase_orders(request):
@@ -749,54 +890,64 @@ def export_sales_csv(request):
 
 @login_required
 def audit_log_list_view(request):
-    logs = AuditLog.objects.all().select_related("user")
+    logs = AuditLog.objects.select_related("user", "store").order_by("-timestamp")
     users = User.objects.all()
-    all_actions = AuditLog.objects.order_by('action').values_list('action', flat=True).distinct()
+    actions = AuditLog.objects.order_by("action").values_list("action", flat=True).distinct()
 
     user = request.user
 
-    # 🔒 Filter logs by store if manager
-    if user.role == "manager" and user.store:
-        logs = logs.filter(description__icontains=user.store.name)
+    # 🔐 Managers: Restrict logs to their assigned stores
+    if user.role == "manager":
+        logs = logs.filter(Q(store__in=user.stores.all()) | Q(user=user))
 
-    # Apply user filters (admins can override and view all)
+    # 🔎 Filters
     user_id = request.GET.get("user")
+    action = request.GET.get("action")
+    start = request.GET.get("start")
+    end = request.GET.get("end")
+    q = request.GET.get("q", "").strip()
+
     if user_id:
         logs = logs.filter(user_id=user_id)
 
-    action = request.GET.get("action")
     if action:
         logs = logs.filter(action=action)
 
-    start = request.GET.get("start")
-    end = request.GET.get("end")
     if start and end:
         try:
-            start_date = datetime.strptime(start, "%Y-%m-%d").date()
-            end_date = datetime.strptime(end, "%Y-%m-%d").date()
-            logs = logs.filter(timestamp__date__range=[start_date, end_date])
+            start_date = datetime.strptime(start, "%Y-%m-%d")
+            end_date = datetime.strptime(end, "%Y-%m-%d")
+            logs = logs.filter(timestamp__range=(start_date, end_date))
         except ValueError:
             pass
 
-    # 🔁 Handle export to PDF
+    if q:
+        logs = logs.filter(Q(description__icontains=q) | Q(user__username__icontains=q))
+
+    # 🧾 Export as PDF
     if request.GET.get("export") == "pdf":
-        html_string = render_to_string("pdf/audit_log_pdf.html", {
-            "logs": logs.order_by("-timestamp"),
-            "request": request,
+        html = render_to_string("pdf/audit_log_pdf.html", {
+            "logs": logs,
+            "exported_at": now(),
         })
-        pdf = HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
+        pdf = HTML(string=html, base_url=request.build_absolute_uri()).write_pdf()
         response = HttpResponse(pdf, content_type="application/pdf")
         response["Content-Disposition"] = "attachment; filename=audit_logs.pdf"
         return response
 
-    # 🗂️ Paginate results
-    paginator = Paginator(logs.order_by("-timestamp"), 25)
+    # 🗂 Pagination
+    paginator = Paginator(logs, 25)
     page_obj = paginator.get_page(request.GET.get("page"))
 
     return render(request, "dashboard/audit_log_list.html", {
         "page_obj": page_obj,
         "users": users,
-        "action_choices": all_actions,
+        "action_choices": actions,
+        "selected_user": user_id,
+        "selected_action": action,
+        "start": start,
+        "end": end,
+        "q": q,
     })
 
 
@@ -882,7 +1033,7 @@ from django.db.models import Sum
 @login_required
 def sale_list_view(request):
     user = request.user
-    sales = Sale.objects.select_related('customer', 'store', 'sold_by').prefetch_related('items__product')
+    sales = Sale.objects.select_related('customer', 'store', 'sold_by').prefetch_related('items__product').order_by('-sale_date')
 
     product_id = request.GET.get('product')
     store_id = request.GET.get('store')
@@ -938,11 +1089,10 @@ def sale_list_view(request):
 
 @login_required
 def sale_receipt_pdf(request, sale_id):
-    sale = get_object_or_404(Sale.objects.prefetch_related('items__product'), pk=sale_id)
+    sale = get_object_or_404(Sale.objects.select_related('store__company_profile').prefetch_related('items__product'), pk=sale_id)
 
-    company = CompanyProfile.objects.first()
+    company = sale.store.company_profile  # ✅ Get company from the store
 
-    # Build logo URL using absolute media path
     logo_url = ""
     if company and company.logo:
         logo_url = request.build_absolute_uri(company.logo.url)
@@ -1195,6 +1345,8 @@ def invoice_create(request):
         'form': form,
         'formset': formset,
     })
+
+
 from django.http import JsonResponse, HttpResponseForbidden
 
 @login_required
@@ -1419,6 +1571,118 @@ def stock_list(request):
         'overall_total_stock': overall_total_stock,
     })
 
+
+
+import random
+import string
+
+def generate_quote_number():
+    from .models import Quotation
+    while True:
+        number = ''.join(random.choices(string.digits, k=6))
+        if not Quotation.objects.filter(quote_number=number).exists():
+            return number
+
+from .forms import QuotationItemFormSet, QuotationForm
+
+@login_required
+def quotation_create(request):
+    user = request.user
+
+    # Limit stores based on role
+    if user.is_superuser or user.role == 'admin':
+        allowed_stores = Store.objects.all()
+    else:
+        allowed_stores = user.stores.all()
+
+    if request.method == 'POST':
+        form = QuotationForm(request.POST)
+        form.fields['store'].queryset = allowed_stores  # 🔒 Reinforce validation
+        formset = QuotationItemFormSet(request.POST)
+
+        if form.is_valid() and formset.is_valid():
+            quotation = form.save(commit=False)
+
+            # 🔐 Double-check store is allowed
+            if quotation.store not in allowed_stores:
+                messages.error(request, "You don't have permission to use this store.")
+                return redirect('inventory:quotation_create')
+
+            quotation.created_by = user
+            quotation.quote_number = generate_quote_number()
+            quotation.save()
+
+            formset.instance = quotation
+            formset.save()
+
+            messages.success(request, "Quotation created successfully.")
+            return redirect('inventory:quotation_detail', quotation.id)
+    else:
+        form = QuotationForm()
+        form.fields['store'].queryset = allowed_stores  # 🔒 Limit dropdown options
+        formset = QuotationItemFormSet()
+
+    return render(request, 'dashboard/quotation_form.html', {
+        'form': form,
+        'formset': formset,
+    })
+
+# from django.shortcuts import get_object_or_404
+
+@login_required
+def quotation_detail(request, pk):
+    quotation = get_object_or_404(
+        Quotation.objects.select_related('customer', 'store', 'created_by').prefetch_related('items__product'),
+        pk=pk
+    )
+    return render(request, 'dashboard/quotation_detail.html', {
+        'quotation': quotation
+    })
+
+# from django.contrib.auth.decorators import login_required
+from .models import Quotation
+
+@login_required
+def quotation_list(request):
+    # Superuser and admins see all, others see only their created ones
+    if request.user.is_superuser or request.user.role == 'admin':
+        quotations = Quotation.objects.select_related('customer', 'store').all()
+    else:
+        quotations = Quotation.objects.select_related('customer', 'store').filter(created_by=request.user)
+
+    return render(request, 'dashboard/quotation_list.html', {
+        'quotations': quotations
+    })
+# from weasyprint import HTML
+# from django.template.loader import render_to_string
+# from django.http import HttpResponse
+# from .models import Quotation
+
+@login_required
+def quotation_pdf(request, pk):
+    quotation = get_object_or_404(
+        Quotation.objects.select_related('customer', 'store', 'created_by').prefetch_related('items__product'),
+        pk=pk
+    )
+
+    company = quotation.store.company_profile if quotation.store and quotation.store.company_profile else CompanyProfile.objects.first()
+
+    context = {
+        'quotation': quotation,
+        'items': quotation.items.all(),
+        'company': company,
+        'user': request.user
+    }
+
+    html = render_to_string('pdf/quotation_pdf.html', context)
+    pdf = HTML(string=html, base_url=request.build_absolute_uri()).write_pdf()
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="Quotation_{quotation.id}.pdf"'
+    return response
+
+
+
 @login_required
 def stock_transfer_list_view(request):
     user = request.user
@@ -1441,6 +1705,9 @@ def stock_transfer_list_view(request):
 # from django.views.decorators.http import require_POST
 
 from accounting.services import record_transaction_by_slug
+
+# from inventory.models import StockTransfer
+# from accounting.models import AuditLog
 
 @login_required
 def stock_transfer_create(request):
@@ -1466,7 +1733,6 @@ def stock_transfer_create(request):
             unit_cost = source_stock.cost_price or 0
             total_value = unit_cost * transfer.quantity
 
-            # 🔁 1. Move value from IA → Transit Stock (same store)
             txn = record_transaction_by_slug(
                 source_slug='inventory-assets',
                 destination_slug='transit-stock',
@@ -1475,7 +1741,6 @@ def stock_transfer_create(request):
                 description=f"Transfer INIT #{transfer.id or 'NEW'}: {transfer.quantity} x {transfer.product.name} from {transfer.source_store.name}"
             )
 
-            # 🔁 2. Link txn
             transfer.transfer_transaction = txn
             transfer.save()
 
@@ -1490,7 +1755,7 @@ def stock_transfer_create(request):
 def transfer_slip_pdf(request, transfer_id):
     transfer = get_object_or_404(StockTransfer, id=transfer_id)
 
-    company = CompanyProfile.objects.first()
+    company = transfer.source_store.company_profile if transfer.source_store else CompanyProfile.objects.first()
 
     context = {
         'transfer': transfer,

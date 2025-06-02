@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+{% load formatting %}
+
 <html>
 <head>
     <meta charset="UTF-8">
@@ -94,11 +96,11 @@
         <tr>
             <td class="left">{{ item.product_name }}</td>
 <td>{{ item.quantity }}</td>
-<td>₦{{ item.unit_price|floatformat:2 }}</td>
-<td>₦{{ item.cost_price|floatformat:2 }}</td>
-<td>₦{{ item.total_sales|floatformat:2 }}</td>
-<td>₦{{ item.total_cost|floatformat:2 }}</td>
-<td>₦{{ item.profit|floatformat:2 }}</td>
+<td>₦{{ item.unit_price|money }}</td>
+<td>₦{{ item.cost_price|money }}</td>
+<td>₦{{ item.total_sales|money }}</td>
+<td>₦{{ item.total_cost|money }}</td>
+<td>₦{{ item.profit|money }}</td>
 
         </tr>
         {% endfor %}
@@ -107,9 +109,9 @@
             <td class="left">TOTAL</td>
             <td>{{ total_quantity }}</td>
             <td colspan="2"></td>
-            <td>N{{ total_sales|floatformat:2 }}</td>
-            <td>N{{ total_cost|floatformat:2 }}</td>
-            <td>N{{ total_profit|floatformat:2 }}</td>
+            <td>N{{ total_sales|money }}</td>
+            <td>N{{ total_cost|money }}</td>
+            <td>N{{ total_profit|money }}</td>
         </tr>
     </tbody>
 </table>
@@ -126,12 +128,12 @@
         {% for exp in expense_data %}
         <tr>
             <td class="left">{{ exp.category }}</td>
-            <td>N{{ exp.amount|floatformat:2 }}</td>
+            <td>N{{ exp.amount|money }}</td>
         </tr>
         {% endfor %}
         <tr class="summary">
             <td class="left">Total Expenses</td>
-            <td>N{{ totals.total_expenses|floatformat:2 }}</td>
+            <td>N{{ totals.total_expenses|money }}</td>
         </tr>
     </tbody>
 </table>
@@ -140,11 +142,11 @@
 <table>
     <tr>
         <th class="left">Gross Profit</th>
-        <td>N{{ totals.gross_profit|floatformat:2 }}</td>
+        <td>N{{ totals.gross_profit|money }}</td>
     </tr>
     <tr>
         <th class="left">Net Profit</th>
-        <td>N{{ totals.net_profit|floatformat:2 }}</td>
+        <td>N{{ totals.net_profit|money }}</td>
     </tr>
 </table>
 

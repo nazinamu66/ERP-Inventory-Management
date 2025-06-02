@@ -1,5 +1,7 @@
 {% extends 'dashboard/base.html' %}
 {% block content %}
+{% load formatting %}
+{% block title %}Trial Balance{% endblock %}
 <div class="container mt-4">
     <h3>📊 Trial Balance</h3>
     {% if stores|length > 1 or show_all_option %}
@@ -30,14 +32,14 @@
             {% for line in lines %}
             <tr>
                 <td>{{ line.account__name }}</td>
-                <td class="text-end">{{ line.total_debit|floatformat:2 }}</td>
-                <td class="text-end">{{ line.total_credit|floatformat:2 }}</td>
+                <td class="text-end">₦{{ line.total_debit|money }}</td>
+                <td class="text-end">₦{{ line.total_credit|money }}</td>
             </tr>
             {% endfor %}
             <tr class="fw-bold">
                 <td>Total</td>
-                <td class="text-end">{{ total_debit|floatformat:2 }}</td>
-                <td class="text-end">{{ total_credit|floatformat:2 }}</td>
+                <td class="text-end">₦{{ total_debit|money }}</td>
+                <td class="text-end">₦{{ total_credit|money }}</td>
             </tr>
         </tbody>
     </table>

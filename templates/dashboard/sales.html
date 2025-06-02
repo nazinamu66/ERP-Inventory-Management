@@ -1,5 +1,7 @@
 {% extends 'dashboard/base.html' %}
 {% block title %}Sales Dashboard{% endblock %}
+{% load formatting %}
+
 {% block content %}
 
 <h3>Welcome, {{ request.user.username }}</h3>
@@ -26,7 +28,7 @@
         <div class="card text-white bg-info">
             <div class="card-body">
                 <h6 class="card-title">Revenue</h6>
-                <p class="fs-4">₦{{ total_sales_value|floatformat:2 }}</p>
+                <p class="fs-4">₦{{ total_sales_value|money }}</p>
             </div>
         </div>
     </div>

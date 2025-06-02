@@ -66,6 +66,10 @@ TransactionLine.objects.all().delete()
 Transaction.objects.all().delete()
 Account.objects.all().delete()
 
+backup command
+0 1 * * * ~/backup_to_dropbox.sh >> ~/bklogs/backup_log.txt 2>&1
+~/backup_to_dropbox.sh
+
 print("✅ All accounts, transactions, and lines have been deleted.")
 
 venv) venvCapo@Capos ERP-Inventory-Management % lsof -i :8000

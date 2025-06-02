@@ -40,33 +40,22 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        const form = document.getElementById('stock-transfer-form');
-        const submitBtn = document.getElementById('submit-btn');
+        const sourceSelect = document.getElementById('id_source_store');
+        const destSelect = document.getElementById('id_destination_store');
 
-        form.addEventListener('submit', function () {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = 'Processing...';
-        });
+        function disableSameStoreOption() {
+            const sourceValue = sourceSelect.value;
+
+            Array.from(destSelect.options).forEach(option => {
+                option.disabled = option.value === sourceValue && sourceValue !== "";
+            });
+        }
+
+        if (sourceSelect && destSelect) {
+            sourceSelect.addEventListener('change', disableSameStoreOption);
+            disableSameStoreOption();  // Run on load
+        }
     });
-
-    document.addEventListener('DOMContentLoaded', function () {
-    const sourceSelect = document.getElementById('id_source_store');
-    const destSelect = document.getElementById('id_destination_store');
-
-    function disableSameStoreOption() {
-        const sourceValue = sourceSelect.value;
-
-        Array.from(destSelect.options).forEach(option => {
-            option.disabled = option.value === sourceValue && sourceValue !== "";
-        });
-    }
-
-    if (sourceSelect && destSelect) {
-        sourceSelect.addEventListener('change', disableSameStoreOption);
-        disableSameStoreOption();  // Run on load
-    }
-});
-
-
 </script>
+
 {% endblock %}

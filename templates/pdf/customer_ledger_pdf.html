@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+{% load formatting %}
+
 <html>
 <head>
     <meta charset="UTF-8">
@@ -57,7 +59,7 @@
     </tbody>
 </table>
 <div class="footer">
-    <strong>Final Balance:</strong> {{ final_balance|floatformat:2 }}
+    <strong>Final Balance:</strong> {{ final_balance|money }}
 </div>
 
 </body>

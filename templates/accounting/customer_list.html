@@ -1,8 +1,10 @@
 {% extends 'dashboard/base.html' %}
 {% block title %}Customer Balances{% endblock %}
-
+{% load formatting %}
 {% block content %}
+
 <h3>Customer Balances</h3>
+
 
 <form method="get" class="mb-3 d-flex gap-2 align-items-center">
     <input type="text" name="q" placeholder="Search by name, email, phone"
@@ -65,10 +67,15 @@
     <tbody>
         {% for row in customers %}
         <tr>
-            <td>{{ row.customer.name }}</td>
-            <td>{{ row.invoiced|floatformat:2 }}</td>
-            <td>{{ row.paid|floatformat:2 }}</td>
-            <td>{{ row.balance|floatformat:2 }}</td>
+            <td>
+                {{ row.customer.name }}
+                {% if row.is_new %}
+                    <span class="badge bg-success">New</span>
+                {% endif %}
+            </td>
+                        <td>₦{{ row.invoiced|money }}</td>
+            <td>₦{{ row.paid|money }}</td>
+            <td>₦{{ row.balance|money }}</td>
             <td>
                 <a href="{% url 'accounting:customer_ledger' row.customer.id %}" class="btn btn-sm btn-outline-primary">View</a>
             </td>

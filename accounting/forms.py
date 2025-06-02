@@ -2,24 +2,63 @@
 
 from django import forms
 from .models import CustomerPayment
-from inventory.models import Customer, Sale  # 👈 include Sale
+from inventory.models import Customer, Sale, PurchaseOrder # 👈 include Sale
 from accounting.models import Account
 from inventory.models import Supplier
 from django.db.models import F
 
 
 
+# accounting/forms.py
+
+from django import forms
+from inventory.models import PurchaseOrder, Store
+from accounting.models import Account, ExpenseEntry
+
 class ExpenseForm(forms.Form):
-    expense_account = forms.ModelChoiceField(queryset=Account.objects.none(), label="Expense Category")
-    payment_account = forms.ModelChoiceField(queryset=Account.objects.none(), label="Paid From")
-    amount = forms.DecimalField(decimal_places=2)
+    expense_account = forms.ModelChoiceField(
+        queryset=Account.objects.filter(type__iexact='expense'),
+        label="Expense Category"
+    )
+
+    payment_account = forms.ModelChoiceField(
+        queryset=Account.objects.filter(type__in=['bank', 'asset']),
+        label="Paid From"
+    )
+
+    amount = forms.DecimalField(decimal_places=2, max_digits=12)
     date = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}))
-    description = forms.CharField(required=False, widget=forms.Textarea)
+    description = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 3, 'placeholder': 'Optional notes'})
+    )
+
+    purchase_orders = forms.ModelMultipleChoiceField(
+        queryset=PurchaseOrder.objects.none(),
+        required=False,
+        label="Linked Purchase Orders",
+        widget=forms.SelectMultiple(attrs={'class': 'form-control'})
+    )
 
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        self.fields['expense_account'].queryset = Account.objects.filter(type__iexact='expense')
-        self.fields['payment_account'].queryset = Account.objects.filter(type__in=['bank', 'asset'])
+
+        # Dynamically filter purchase orders
+        if user:
+            if user.is_superuser or user.role == 'admin':
+                self.fields['purchase_orders'].queryset = PurchaseOrder.objects.filter(status='received')
+            else:
+                store = getattr(user, 'store', None)
+                if store:
+                    self.fields['purchase_orders'].queryset = PurchaseOrder.objects.filter(store=store, status='received')
+                else:
+                    self.fields['purchase_orders'].queryset = PurchaseOrder.objects.none()
+
+    # def __init__(self, *args, **kwargs):
+    #     super().__init__(*args, **kwargs)
+    #     self.fields['expense_account'].queryset = Account.objects.filter(type__iexact='expense')
+    #     self.fields['payment_account'].queryset = Account.objects.filter(type__in=['bank', 'asset'])
 
 
 class AccountDepositForm(forms.Form):

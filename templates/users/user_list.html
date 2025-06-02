@@ -1,5 +1,8 @@
 {% extends 'dashboard/base.html' %}
+{% block title %}Manage Users{% endblock %}
+
 {% block content %}
+
 <div class="container mt-4">
     <h3>User Management</h3>
     <a class="btn btn-success mb-3" href="{% url 'users:user_create' %}">➕ Add New User</a>

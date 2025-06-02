@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 {% block title %}Expense History{% endblock %}
-
+{% load formatting %}
 {% block content %}
 <h3>Expense History</h3>
 
@@ -49,10 +49,16 @@
             {% if request.user.role == 'admin' %}
             <td>{{ exp.store.name }}</td>
             {% endif %}
-            <td>₦{{ exp.amount|floatformat:2 }}</td>
+            <td>₦{{ exp.amount|money }}</td>
             <td>{{ exp.payment_account.name }}</td>
             <td>{{ exp.description|default:"-" }}</td>
             <td>{{ exp.user.username }}</td>
+            <td>
+                {% for po in expense.purchase_orders.all %}
+                  <a href="{% url 'inventory:po_detail' po.id %}">PO #{{ po.id }}</a>{% if not forloop.last %}, {% endif %}
+                {% endfor %}
+              </td>
+              
         </tr>
         {% empty %}
         <tr>

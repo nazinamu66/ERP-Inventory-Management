@@ -17,7 +17,15 @@ from inventory.models import Product, Stock
 from inventory.models import Sale, SaleItem
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField
 from accounting.models import ExpenseEntry
+from users.models import LoginActivity
 
+
+# @login_required
+# def login_activity_view(request):
+#     logs = LoginActivity.objects.all().order_by('-timestamp')
+#     if not request.user.is_superuser:
+#         logs = logs.filter(user=request.user)
+#     return render(request, 'dashboard/login_activity.html', {'logs': logs})
 
 
 

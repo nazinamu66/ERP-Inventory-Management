@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+{% load formatting %}
+
 <html>
 <head>
   <meta charset="utf-8">
@@ -49,9 +51,9 @@
         <tr>
           <td>#{{ row.invoice.id }}</td>
           <td>{{ row.date }}</td>
-          <td>{{ row.amount|floatformat:2 }}</td>
-          <td>{{ row.paid|floatformat:2 }}</td>
-          <td>{{ row.balance|floatformat:2 }}</td>
+          <td>{{ row.amount|money }}</td>
+          <td>{{ row.paid|money }}</td>
+          <td>{{ row.balance|money }}</td>
           <td>{{ row.due_days }} days</td>
         </tr>
         {% endfor %}

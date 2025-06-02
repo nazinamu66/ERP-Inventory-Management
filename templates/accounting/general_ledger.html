@@ -1,5 +1,8 @@
 {% extends 'dashboard/base.html' %}
 {% load static %}
+{% load formatting %}
+{% block title %}General Ledger{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
   <h3>📘 General Ledger</h3>
@@ -26,17 +29,17 @@
       <tr>
         <td>{{ line.date|date:"Y-m-d H:i" }}</td>
         <td>{{ line.description }}</td>
-        <td>{{ line.debit|floatformat:2 }}</td>
-        <td>{{ line.credit|floatformat:2 }}</td>
-        <td>{{ line.balance|floatformat:2 }}</td>
+        <td>₦{{ line.debit|money }}</td>
+        <td>₦{{ line.credit|money }}</td>
+        <td>₦{{ line.balance|money }}</td>
       </tr>
       {% endfor %}
     </tbody>
     <tfoot>
       <tr>
         <th colspan="2">Total</th>
-        <th>{{ total_debit|floatformat:2 }}</th>
-        <th>{{ total_credit|floatformat:2 }}</th>
+        <th>₦{{ total_debit|money }}</th>
+        <th>₦{{ total_credit|money }}</th>
         <th></th>
       </tr>
     </tfoot>

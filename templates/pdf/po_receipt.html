@@ -1,38 +1,87 @@
 <!DOCTYPE html>
-<html>
+{% load formatting %}
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>PO Receipt - PO-{{ po.id }}</title>
+    <title>Purchase Order Receipt</title>
     <style>
-        body { font-family: Arial, sans-serif; font-size: 14px; }
-        .header, .footer { text-align: center; }
-        .logo { max-height: 80px; margin-bottom: 10px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #333; padding: 8px; text-align: left; }
-        .total { text-align: right; margin-top: 10px; font-weight: bold; }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            margin: 40px;
+            color: #000;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header img {
+            height: 60px;
+            margin-bottom: 10px;
+        }
+        .company-details {
+            margin-top: 5px;
+            font-size: 11px;
+        }
+        hr {
+            margin: 15px 0;
+        }
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 30px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+        th, td {
+            border: 1px solid #000;
+            padding: 6px;
+            text-align: left;
+        }
+        .totals {
+            width: 100%;
+            margin-top: 25px;
+            font-size: 13px;
+        }
+        .totals td {
+            padding: 6px;
+            text-align: right;
+        }
+        .totals tr td:first-child {
+            text-align: left;
+        }
     </style>
 </head>
 <body>
 
+<!-- 🔷 Header -->
 <div class="header">
-    {% if company and company.logo %}
-        <img src="{{ company.logo.url }}" class="logo"><br>
-    {% endif %}
-    {% if company %}
-        <h2>{{ company.name }}</h2>
-        <p>{{ company.address }}</p>
-        <p>{{ company.contact_email }} | {{ company.contact_phone }}</p>
-        <p>{{ company.website }}</p>
-    {% endif %}
+    {% if company.logo %}
+    <img src="{{ company.logo.url }}" class="logo"><br>
+{% endif %}
+
+    <div class="company-details">
+        <strong>{{ company.name }}</strong><br>
+        {{ company.address }}<br>
+        {{ company.contact_email }} | {{ company.contact_phone }}<br>
+        {% if company.website %}{{ company.website }}{% endif %}
+    </div>
 </div>
 
 <hr>
 
-<h3>Purchase Order Receipt — PO-{{ po.id }}</h3>
+<h2 style="text-align: center;">Purchase Order - PO-{{ po.id }}</h2>
+<p><strong>Status:</strong> {{ po.status|title }}</p>
 <p><strong>Supplier:</strong> {{ po.supplier.name }}</p>
-<p><strong>Date:</strong> {{ po.date }}</p>
-<p><strong>Received By:</strong> {{ received_by.get_full_name }} ({{ received_by.username }})</p>
+<p><strong>Created By:</strong> {{ po.created_by.username }} on {{ po.date }}</p>
 
+<!-- 📦 Items -->
+<div class="section-title">Ordered Items</div>
 <table>
     <thead>
         <tr>
@@ -49,19 +98,35 @@
             <td>{{ forloop.counter }}</td>
             <td>{{ item.product.name }}</td>
             <td>{{ item.quantity }}</td>
-            <td>₦{{ item.unit_price }}</td>
-            <td>₦{{ item.subtotal }}</td>
+            <td>N{{ item.unit_price|money }}</td>
+            <td>N{{ item.subtotal|money }}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 
-<p class="total">Total: ₦{{ total }}</p>
-
-<hr>
-<div class="footer">
-    <p>Generated on {{ now|date:"Y-m-d H:i" }}</p>
-</div>
+<!-- 💸 Totals -->
+<table class="totals">
+    <tr>
+        <td><strong>Goods Total:</strong></td>
+        <td>N{{ goods_total|money }}</td>
+    </tr>
+    {% if expenses_total > 0 %}
+    <tr>
+        <td><strong>Additional Expenses:</strong></td>
+        <td>N{{ expenses_total|money }}</td>
+    </tr>
+    <tr>
+        <td><strong>Grand Total (Goods + Expenses):</strong></td>
+        <td><strong>N{{ grand_total|money }}</strong></td>
+    </tr>
+    {% else %}
+    <tr>
+        <td><strong>Grand Total:</strong></td>
+        <td><strong>N{{ goods_total|money }}</strong></td>
+    </tr>
+    {% endif %}
+</table>
 
 </body>
 </html>

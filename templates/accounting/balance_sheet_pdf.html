@@ -1,4 +1,6 @@
 {% load humanize %}
+{% load formatting %}
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -36,9 +38,9 @@
         <thead><tr><th>Account</th><th>Amount</th></tr></thead>
         <tbody>
             {% for item in assets %}
-            <tr><td>{{ item.name }}</td><td>{{ item.balance|floatformat:2|intcomma }}</td></tr>
+            <tr><td>{{ item.name }}</td><td>N{{ item.balance|money|intcomma }}</td></tr>
             {% endfor %}
-            <tr><th>Total Assets</th><th>{{ total_assets|floatformat:2|intcomma }}</th></tr>
+            <tr><th>Total Assets</th><th>{{ total_assets|money|intcomma }}</th></tr>
         </tbody>
     </table>
 
@@ -47,9 +49,11 @@
         <thead><tr><th>Account</th><th>Amount</th></tr></thead>
         <tbody>
             {% for item in liabilities %}
-            <tr><td>{{ item.name }}</td><td>{{ item.balance|floatformat:2|intcomma }}</td></tr>
+            <tr><td>{{ item.name }}</td><td>N
+{{ item.balance|money|intcomma }}</td></tr>
             {% endfor %}
-            <tr><th>Total Liabilities</th><th>{{ total_liabilities|floatformat:2|intcomma }}</th></tr>
+            <tr><th>Total Liabilities</th><th>N
+{{ total_liabilities|money|intcomma }}</th></tr>
         </tbody>
     </table>
 
@@ -58,9 +62,9 @@
         <thead><tr><th>Account</th><th>Amount</th></tr></thead>
         <tbody>
             {% for item in equity %}
-            <tr><td>{{ item.name }}</td><td>{{ item.balance|floatformat:2|intcomma }}</td></tr>
+            <tr><td>{{ item.name }}</td><td>N{{ item.balance|money|intcomma }}</td></tr>
             {% endfor %}
-            <tr><th>Total Equity</th><th>{{ total_equity|floatformat:2|intcomma }}</th></tr>
+            <tr><th>Total Equity</th><th>N{{ total_equity|money|intcomma }}</th></tr>
         </tbody>
     </table>
 
@@ -69,8 +73,8 @@
         <thead><tr><th>Total Assets</th><th>Total Liabilities + Equity</th></tr></thead>
         <tbody>
             <tr>
-                <td>{{ total_assets|floatformat:2|intcomma }}</td>
-                <td>{{ total_liabilities|add:total_equity|floatformat:2|intcomma }}</td>
+                <td>N{{ total_assets|money|intcomma }}</td>
+                <td>N{{ total_liabilities|add:total_equity|money|intcomma }}</td>
             </tr>
         </tbody>
     </table>

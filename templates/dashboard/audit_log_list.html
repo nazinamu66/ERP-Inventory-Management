@@ -4,37 +4,37 @@
 {% block content %}
 <h3>Audit Logs</h3>
 
-<form method="get" class="row g-3 mb-3">
+<form method="get" class="row g-2 mb-3">
     <div class="col-md-3">
-        <label class="form-label">User</label>
-        <select name="user" class="form-select">
-            <option value="">All Users</option>
-            {% for u in users %}
-                <option value="{{ u.id }}" {% if request.GET.user == u.id|stringformat:"s" %}selected{% endif %}>{{ u.username }}</option>
-            {% endfor %}
-        </select>
+      <input type="text" name="q" placeholder="Search logs..." value="{{ q }}" class="form-control">
     </div>
-    <div class="col-md-3">
-        <label class="form-label">Action</label>
-        <select name="action" class="form-select">
-            <option value="">All Actions</option>
-            {% for action in action_choices %}
-                <option value="{{ action }}" {% if request.GET.action == action %}selected{% endif %}>{{ action|capfirst }}</option>
-            {% endfor %}
-        </select>
+    <div class="col-md-2">
+      <select name="user" class="form-select">
+        <option value="">All Users</option>
+        {% for u in users %}
+          <option value="{{ u.id }}" {% if u.id|stringformat:"s" == selected_user %}selected{% endif %}>{{ u.username }}</option>
+        {% endfor %}
+      </select>
     </div>
-    <div class="col-md-3">
-        <label class="form-label">Date Range</label>
-        <input type="date" name="start" value="{{ request.GET.start }}" class="form-control mb-2" placeholder="Start date">
-        <input type="date" name="end" value="{{ request.GET.end }}" class="form-control" placeholder="End date">
+    <div class="col-md-2">
+      <select name="action" class="form-select">
+        <option value="">All Actions</option>
+        {% for a in action_choices %}
+          <option value="{{ a }}" {% if a == selected_action %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
     </div>
-    <div class="col-md-3 d-flex align-items-end justify-content-end gap-2">
-        <button type="submit" class="btn btn-primary">Filter</button>
-        <a href="{% url 'inventory:audit_log_list' %}" class="btn btn-secondary">Clear</a>
-        <a href="?{% querystring export='pdf' %}" class="btn btn-danger">Export PDF</a>
+    <div class="col-md-2">
+      <input type="date" name="start" value="{{ start }}" class="form-control">
     </div>
-</form>
-
+    <div class="col-md-2">
+      <input type="date" name="end" value="{{ end }}" class="form-control">
+    </div>
+    <div class="col-md-1 d-grid">
+      <button type="submit" class="btn btn-primary">Filter</button>
+    </div>
+  </form>
+  
 <div class="table-responsive">
     <table class="table table-bordered table-striped table-hover table-sm">
         <thead>

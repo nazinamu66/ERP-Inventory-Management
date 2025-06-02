@@ -1,0 +1,40 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Quotation History{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>📝 Quotation History</h2>
+    <a href="{% url 'inventory:quotation_create' %}" class="btn btn-primary mb-3">➕ New Quotation</a>
+
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th>Store</th>
+                <th>Created By</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for q in quotations %}
+                <tr>
+                    <td>{{ q.id }}</td>
+                    <td>{{ q.customer.name }}</td>
+                    <td>{{ q.date }}</td>
+                    <td>{{ q.store.name }}</td>
+                    <td>{{ q.created_by.get_full_name|default:q.created_by.username }}</td>
+                    <td>
+                        <a href="{% url 'inventory:quotation_detail' q.id %}" class="btn btn-sm btn-outline-info">View</a>
+                        <!-- Optional: PDF button -->
+                        <a href="{% url 'inventory:quotation_pdf' q.id %}" class="btn btn-sm btn-outline-danger">PDF</a>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6" class="text-center">No quotations found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

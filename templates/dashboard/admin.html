@@ -1,5 +1,6 @@
 {% extends 'dashboard/base.html' %}
 {% load static %}
+{% load formatting %}
 {% block title %}Admin Dashboard{% endblock %}
 {% block content %}
 
@@ -52,7 +53,7 @@
         <div class="card text-white bg-secondary">
             <div class="card-body">
                 <h6>Total Revenue</h6>
-                <p class="fs-5">₦{{ total_revenue|floatformat:2 }}</p>
+                <p class="fs-5">₦{{ total_revenue|money }}</p>
             </div>
         </div>
     </div>
@@ -60,7 +61,7 @@
         <div class="card text-white bg-info">
             <div class="card-body">
                 <h6>Net Profit</h6>
-                <p class="fs-5">₦{{ net_profit|floatformat:2 }}</p>
+                <p class="fs-5">₦{{ net_profit|money }}</p>
             </div>
         </div>
     </div>

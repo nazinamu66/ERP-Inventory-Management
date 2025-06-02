@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 {% block title %}Ledger - {{ account.name }}{% endblock %}
-
+{% load formatting %}
 {% block content %}
 <h3>Ledger for {{ account.name }}</h3>
 <table class="table table-bordered">
@@ -20,9 +20,9 @@
             <td>{{ row.date|date:"Y-m-d H:i" }}</td>
             <td>{{ row.description }}</td>
             <td>{{ row.store }}</td>
-            <td>{{ row.debit|floatformat:2 }}</td>
-            <td>{{ row.credit|floatformat:2 }}</td>
-            <td>{{ row.balance|floatformat:2 }}</td>
+            <td>₦{{ row.debit|money }}</td>
+            <td>₦{{ row.credit|money }}</td>
+            <td>₦{{ row.balance|money }}</td>
           </tr>
         {% endfor %}
       </tbody>

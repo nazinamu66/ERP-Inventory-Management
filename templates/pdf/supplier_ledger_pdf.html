@@ -1,6 +1,6 @@
 {% load static %}
 {% load custom_filters %}
-
+{% load formatting %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -86,15 +86,15 @@
                 <td>{{ entry.type }}</td>
                 <td class="right">
                     {% if entry.amount < 0 %}
-                    {{ entry.amount|abs_val|floatformat:2 }}
+                    {{ entry.amount|abs_val|money }}
                     {% endif %}
                 </td>
                 <td class="right">
                     {% if entry.amount > 0 %}
-                        {{ entry.amount|floatformat:2 }}
+                        {{ entry.amount|money }}
                     {% endif %}
                 </td>
-                <td class="right">{{ entry.balance|floatformat:2 }}</td>
+                <td class="right">{{ entry.balance|money }}</td>
                 <td>{{ entry.note }}</td>
             </tr>
             {% empty %}
@@ -106,7 +106,7 @@
         <tfoot>
             <tr>
                 <th colspan="4">Final Balance</th>
-                <th class="right">₦{{ final_balance|floatformat:2 }}</th>
+                <th class="right">₦{{ final_balance|money }}</th>
                 <th>
                     {% if final_balance > 0 %}
                         (You owe supplier)

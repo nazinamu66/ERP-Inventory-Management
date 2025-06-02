@@ -99,19 +99,18 @@ from inventory.models import Store
 @login_required
 def record_expense(request):
     if request.method == 'POST':
-        form = ExpenseForm(request.POST)
+        form = ExpenseForm(request.POST, user=request.user)
         if form.is_valid():
             expense_account = form.cleaned_data['expense_account']
             payment_account = form.cleaned_data['payment_account']
             amount = form.cleaned_data['amount']
             date = form.cleaned_data['date']
             description = form.cleaned_data['description'] or f"Expense: {expense_account.name}"
+            po_list = form.cleaned_data.get('purchase_orders')  # ✅ List of selected POs
 
-            # Fallback store for users like admin with no assigned store
             store = getattr(request.user, 'store', None) or Store.objects.first()
 
             try:
-                # Record transaction between accounts
                 transaction = record_transaction_by_slug(
                     source_slug=payment_account.slug,
                     destination_slug=expense_account.slug,
@@ -120,8 +119,8 @@ def record_expense(request):
                     store=store
                 )
 
-                # Create ExpenseEntry
-                ExpenseEntry.objects.create(
+                # ✅ Save expense and attach POs
+                expense_entry = ExpenseEntry.objects.create(
                     expense_account=expense_account,
                     payment_account=payment_account,
                     amount=amount,
@@ -132,7 +131,9 @@ def record_expense(request):
                     recorded_by=request.user
                 )
 
-                # 📝 Log to AuditLog
+                if po_list:
+                    expense_entry.purchase_orders.set(po_list)  # ✅ M2M relation
+
                 AuditLog.objects.create(
                     user=request.user,
                     action='expense',
@@ -146,7 +147,7 @@ def record_expense(request):
             except Exception as e:
                 messages.error(request, f"❌ Failed to record expense: {e}")
     else:
-        form = ExpenseForm()
+        form = ExpenseForm(user=request.user)
 
     return render(request, 'accounting/record_expense.html', {'form': form})
 
@@ -321,7 +322,6 @@ def customer_aging_report_pdf(request):
     today = now().date()
     search = request.GET.get('q', '').strip()
     bucket_filter = request.GET.get('bucket')
-    company = CompanyProfile.objects.first()
 
     invoices = (
         Sale.objects
@@ -337,10 +337,17 @@ def customer_aging_report_pdf(request):
         )
 
     grouped = defaultdict(lambda: defaultdict(list))
+    company = None
 
     for invoice in invoices:
         if not invoice.customer:
             continue
+
+        # Set company once using customer.created_by
+        if not company and hasattr(invoice.customer, 'created_by') and invoice.customer.created_by:
+            user_stores = invoice.customer.created_by.stores.all()
+            if user_stores.exists():
+                company = user_stores.first().company_profile
 
         age = (today - invoice.sale_date.date()).days
         if age <= 30:
@@ -373,6 +380,10 @@ def customer_aging_report_pdf(request):
 
     for customer in grouped:
         grouped[customer] = dict(grouped[customer])
+
+    # Fallback if company wasn't set above
+    if not company:
+        company = CompanyProfile.objects.first()
 
     html = render_to_string('pdf/customer_aging_report_pdf.html', {
         'grouped': dict(grouped),
@@ -548,9 +559,13 @@ def supplier_ledger_pdf(request, supplier_id):
     supplier = get_object_or_404(Supplier, pk=supplier_id)
     from_date = request.GET.get('from')
     to_date = request.GET.get('to')
-    company = CompanyProfile.objects.first()
 
-    entries = SupplierLedger.objects.filter(supplier=supplier).select_related('transaction').order_by('transaction__created_at')
+    entries = SupplierLedger.objects.filter(supplier=supplier).select_related('transaction__store').order_by('transaction__created_at')
+
+    # Get company from the first available transaction’s store
+    company = None
+    if entries.exists():
+        company = entries.first().transaction.store.company_profile
 
     # Filter by date range
     if from_date:
@@ -697,13 +712,16 @@ from .utils import get_balance_sheet_context
 
 @login_required
 def balance_sheet_pdf_view(request):
-    company = CompanyProfile.objects.first()
     store_id = request.GET.get("store")
     store = Store.objects.filter(id=store_id).first() if store_id else None
 
+    # Restrict store access for managers
     if request.user.role == 'manager':
         if not store or store not in request.user.stores.all():
             store = request.user.stores.first()
+
+    # ✅ Use the profile linked to the store, or fallback
+    company = store.company_profile if store and store.company_profile else CompanyProfile.objects.first()
 
     context = get_balance_sheet_context(store)
     context.update({
@@ -912,31 +930,28 @@ def build_customer_ledger(customer, from_date_str=None, to_date_str=None, user=N
 
 @login_required
 def customer_list_with_balances(request):
+    from django.db.models import OuterRef, Exists
+
     query = request.GET.get('q', '').strip()
     sort = request.GET.get('sort', '')
 
     customers = Customer.objects.all()
 
-    # 🔐 Restrict to manager's store(s)
     if request.user.role == 'manager':
-        from django.db.models import OuterRef, Exists
-
-        # Get the stores the user has access to
         store_ids = request.user.stores.values_list('id', flat=True)
+        user_ids = request.user.stores.values_list('user__id', flat=True)  # not correct
 
-        # Limit customers to those with sales or payments in allowed stores
-        from django.db.models import OuterRef, Exists
-
-        store_ids = request.user.stores.values_list('id', flat=True)
+        # Get all users assigned to the manager's stores
+        from users.models import User  # if needed
+        users_in_store = User.objects.filter(stores__in=store_ids).distinct()
 
         customers = customers.annotate(
-            has_sales=Exists(
-                Sale.objects.filter(customer=OuterRef('pk'), store__in=store_ids)
-            ),
-            has_payments=Exists(
-                CustomerPayment.objects.filter(customer=OuterRef('pk'), transaction__store__in=store_ids)
-            )
-        ).filter(Q(has_sales=True) | Q(has_payments=True))
+            has_sales=Exists(Sale.objects.filter(customer=OuterRef('pk'), store__in=store_ids)),
+            has_payments=Exists(CustomerPayment.objects.filter(customer=OuterRef('pk'), transaction__store__in=store_ids)),
+            created_by_user=Exists(Customer.objects.filter(pk=OuterRef('pk'), created_by__in=users_in_store))
+        ).filter(
+            Q(has_sales=True) | Q(has_payments=True) | Q(created_by_user=True)
+        )
 
     if query:
         customers = customers.filter(
@@ -945,10 +960,13 @@ def customer_list_with_balances(request):
             Q(phone__icontains=query)
         )
 
+    # === Aggregate balances ===
     customer_data = []
+    from datetime import timedelta
+
+# ...
 
     for customer in customers:
-        # 🔁 Restrict sales and payments to manager’s stores
         sales_qs = Sale.objects.filter(customer=customer, sale_type='invoice')
         payments_qs = CustomerPayment.objects.filter(customer=customer)
 
@@ -960,14 +978,21 @@ def customer_list_with_balances(request):
         total_paid = payments_qs.aggregate(total=Coalesce(Sum('amount'), Decimal('0.00')))['total']
         balance = total_invoiced - total_paid
 
+        has_transactions = sales_qs.exists() or payments_qs.exists()
+
+        # ✅ Only show "New" badge if:
+        # 1. Customer was created recently
+        # 2. They have no transactions yet
+        is_new = not has_transactions and customer.created_at >= timezone.now() - timedelta(days=2)
+
         customer_data.append({
             'customer': customer,
             'invoiced': total_invoiced,
             'paid': total_paid,
-            'balance': balance
+            'balance': balance,
+            'is_new': is_new,
         })
-
-    # 🔁 Sorting
+    # === Sort if needed ===
     sort_map = {
         'balance_asc': ('balance', False),
         'balance_desc': ('balance', True),
@@ -1009,6 +1034,8 @@ def customer_ledger_view(request, customer_id):
         'final_balance': running_balance
     })
 
+from django.db.models import OuterRef, Exists
+
 
 @login_required
 def customer_ledger_pdf(request, customer_id):
@@ -1016,8 +1043,26 @@ def customer_ledger_pdf(request, customer_id):
     from_date = request.GET.get('from')
     to_date = request.GET.get('to')
     transaction_type = request.GET.get('type')
-    company = CompanyProfile.objects.first()
 
+    # ✅ Determine the store
+    store_id = request.GET.get("store")
+    store = Store.objects.filter(id=store_id).first() if store_id else None
+
+    # ✅ Restrict to manager's assigned stores if applicable
+    if request.user.role == 'manager':
+        store_ids = request.user.stores.values_list('id', flat=True)
+
+        sales_sub = Sale.objects.filter(customer=OuterRef('pk'), store__in=store_ids)
+        payment_sub = CustomerPayment.objects.filter(customer=OuterRef('pk'), transaction__store__in=store_ids)
+
+        customers = customers.annotate(
+            has_data=Exists(sales_sub) | Exists(payment_sub)
+        ).filter(Q(has_data=True) | Q(created_by=request.user))
+
+    # ✅ Use store-specific company profile, fallback if missing
+    company = store.company_profile if store and store.company_profile else CompanyProfile.objects.first()
+
+    # ⬇️ Generate ledger
     ledger, running_balance = build_customer_ledger(customer, from_date, to_date, user=request.user)
 
     if transaction_type:
@@ -1045,29 +1090,66 @@ def customer_ledger_pdf(request, customer_id):
     response['Content-Disposition'] = f'filename=ledger_{customer.id}.pdf'
     return response
 
+
 @login_required
 def edit_customer(request, customer_id):
     customer = get_object_or_404(Customer, pk=customer_id)
+
     if request.method == 'POST':
         form = CustomerForm(request.POST, instance=customer)
         if form.is_valid():
             form.save()
+
+            # ✅ Log edit
+            user_store = request.user.stores.first() if hasattr(request.user, 'stores') else None
+            AuditLog.objects.create(
+                user=request.user,
+                action='edit_customer',
+                store=user_store,
+                description=f"{request.user.username} edited customer '{customer.name}'"
+            )
+
             messages.success(request, 'Customer details updated successfully.')
             return redirect('accounting:customer_list')
     else:
         form = CustomerForm(instance=customer)
+
     return render(request, 'accounting/edit_customer.html', {'form': form, 'customer': customer})
+
 
 
 @login_required
 @require_POST
 def delete_customer(request, customer_id):
     customer = get_object_or_404(Customer, pk=customer_id)
+
+    # 🔐 Check if customer has unpaid balance
+    total_invoiced = Sale.objects.filter(customer=customer, sale_type='invoice')\
+        .aggregate(total=Coalesce(Sum('total_amount'), Decimal('0.00')))['total']
+
+    total_paid = CustomerPayment.objects.filter(customer=customer)\
+        .aggregate(total=Coalesce(Sum('amount'), Decimal('0.00')))['total']
+
+    balance = total_invoiced - total_paid
+
+    if balance > 0 and not request.user.is_superuser:
+        messages.error(request, f"Cannot delete customer '{customer.name}' — outstanding balance of ₦{balance:.2f}.")
+        return redirect('accounting:customer_list')
+
     customer_name = customer.name
     customer.delete()
+
+    # ✅ Log deletion
+    user_store = request.user.stores.first() if hasattr(request.user, 'stores') else None
+    AuditLog.objects.create(
+        user=request.user,
+        action='delete_customer',
+        store=user_store,
+        description=f"{request.user.username} deleted customer '{customer_name}'"
+    )
+
     messages.success(request, f"Customer '{customer_name}' deleted successfully.")
     return redirect('accounting:customer_list')
-
 
 
 @login_required

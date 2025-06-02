@@ -1,5 +1,6 @@
 {% extends 'dashboard/base.html' %}
 {% block title %}Account Balances{% endblock %}
+{% load formatting %}
 
 {% block content %}
 <h2>Account Balances</h2>
@@ -18,7 +19,7 @@
 <tr>
     <td><a href="{% url 'accounting:account_ledger' account.slug %}">{{ account.name }}</a></td>
     <td>{{ account.type|capfirst }}</td>
-    <td>{{ balance|floatformat:2 }}</td>
+    <td>₦{{ balance|money }}</td>
 </tr>
 {% endfor %}
 

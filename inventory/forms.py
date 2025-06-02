@@ -264,20 +264,42 @@ class StockTransferForm(forms.ModelForm):
         request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
 
-        if request and hasattr(request.user, 'role') and request.user.role == 'manager':
-            allowed_stores = request.user.stores.all()
-            self.fields['source_store'].queryset = allowed_stores
-            self.fields['destination_store'].queryset = Store.objects.exclude(id__in=allowed_stores.values_list('id', flat=True))
+        user = request.user if request else None
+        is_admin = user.is_superuser if user else False
+
+        if is_admin:
+            stores = Store.objects.filter(is_active=True)
         else:
-            self.fields['source_store'].queryset = Store.objects.all()
-            self.fields['destination_store'].queryset = Store.objects.all()
+            stores = user.stores.filter(is_active=True)
 
-    def clean(self):
-        cleaned_data = super().clean()
-        source = cleaned_data.get('source_store')
-        destination = cleaned_data.get('destination_store')
+        self.fields['source_store'].queryset = stores
 
-        if source and destination and source == destination:
-            raise forms.ValidationError("Source and destination stores must be different.")
+        # ✅ Destination = All stores with same company_profile as user's first store
+        company_profile = stores.first().company_profile if stores.exists() else None
+        self.fields['destination_store'].queryset = Store.objects.filter(
+            is_active=True,
+            company_profile=company_profile
+        )
 
-        return cleaned_data
+from django import forms
+from .models import Quotation, QuotationItem
+from django.forms import inlineformset_factory
+
+class QuotationForm(forms.ModelForm):
+    class Meta:
+        model = Quotation
+        fields = ['customer', 'store', 'note']
+
+
+QuotationItemFormSet = inlineformset_factory(
+    Quotation,
+    QuotationItem,
+    fields=['product', 'quantity', 'unit_price'],
+    extra=1,
+    can_delete=True,
+    widgets={
+        'product': forms.Select(attrs={'class': 'form-control'}),
+        'quantity': forms.NumberInput(attrs={'class': 'form-control'}),
+        'unit_price': forms.NumberInput(attrs={'class': 'form-control'}),
+    }
+)

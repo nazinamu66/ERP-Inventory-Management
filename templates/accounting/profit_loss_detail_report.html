@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 {% block title %}Profit & Loss Detail Report{% endblock %}
-
+{% load formatting %}
 {% block content %}
 <h3>Profit & Loss Detail Report</h3>
 
@@ -45,9 +45,9 @@
         <tr>
             <td>{{ item.product_name }}</td>
             <td>{{ item.quantity_sold }}</td>
-            <td>{{ item.total_sales|floatformat:2 }}</td>
-            <td>{{ item.total_cost|floatformat:2 }}</td>
-            <td>{{ item.profit|floatformat:2 }}</td>
+            <td>₦{{ item.total_sales|money }}</td>
+            <td>₦{{ item.total_cost|money }}</td>
+            <td>₦{{ item.profit|money }}</td>
         </tr>
         {% empty %}
         <tr><td colspan="5" class="text-center">No sales data found for this period.</td></tr>
@@ -57,9 +57,9 @@
         <tr>
             <th>Total</th>
             <th></th>
-            <th>{{ totals.total_sales|floatformat:2 }}</th>
-            <th>{{ totals.total_cost|floatformat:2 }}</th>
-            <th>{{ totals.gross_profit|floatformat:2 }}</th>
+            <th>₦{{ totals.total_sales|money }}</th>
+            <th>₦{{ totals.total_cost|money }}</th>
+            <th>₦{{ totals.gross_profit|money }}</th>
         </tr>
     </tfoot>
 </table>
@@ -76,7 +76,7 @@
         {% for exp in expense_data %}
         <tr>
             <td>{{ exp.category }}</td>
-            <td>{{ exp.amount|floatformat:2 }}</td>
+            <td>₦{{ exp.amount|money }}</td>
         </tr>
         {% empty %}
         <tr><td colspan="2" class="text-center">No expense data found for this period.</td></tr>
@@ -85,7 +85,7 @@
     <tfoot>
         <tr>
             <th>Total Expenses</th>
-            <th>{{ totals.total_expenses|floatformat:2 }}</th>
+            <th>₦{{ totals.total_expenses|money }}</th>
         </tr>
     </tfoot>
 </table>
@@ -95,11 +95,11 @@
     <tbody>
         <tr>
             <th>Gross Profit</th>
-            <td>₦{{ totals.gross_profit|floatformat:2 }}</td>
+            <td>₦{{ totals.gross_profit|money }}</td>
         </tr>
         <tr>
             <th>Net Profit</th>
-            <td>₦{{ totals.net_profit|floatformat:2 }}</td>
+            <td>₦{{ totals.net_profit|money }}</td>
         </tr>
     </tbody>
 </table>

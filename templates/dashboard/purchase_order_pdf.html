@@ -1,34 +1,87 @@
 <!DOCTYPE html>
-<html>
+{% load formatting %}
+<html lang="en">
 <head>
+    <meta charset="utf-8">
+    <title>Purchase Order PDF</title>
     <style>
-        body { font-family: sans-serif; font-size: 12px; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .header img { height: 80px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #000; padding: 5px; text-align: left; }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            margin: 40px;
+            color: #000;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header img {
+            height: 60px;
+            margin-bottom: 10px;
+        }
+        .company-details {
+            margin-top: 5px;
+            font-size: 11px;
+        }
+        hr {
+            margin: 15px 0;
+        }
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 30px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+        th, td {
+            border: 1px solid #000;
+            padding: 6px;
+            text-align: left;
+        }
+        .totals {
+            width: 100%;
+            margin-top: 25px;
+            font-size: 13px;
+        }
+        .totals td {
+            padding: 6px;
+            text-align: right;
+        }
+        .totals tr td:first-child {
+            text-align: left;
+        }
     </style>
 </head>
 <body>
 
+<!-- 🔷 Company Header -->
 <div class="header">
     {% if company.logo %}
-        <img src="{{ company.logo.path }}" alt="Logo"><br>
+        <img src="{{ company.logo.path }}" alt="Company Logo"><br>
     {% endif %}
-    <strong>{{ company.name }}</strong><br>
-    {{ company.address }}<br>
-    {{ company.contact_email }} | {{ company.contact_phone }}<br>
-    {{ company.website }}
+    <div class="company-details">
+        <strong>{{ company.name }}</strong><br>
+        {{ company.address }}<br>
+        {{ company.contact_email }} | {{ company.contact_phone }}<br>
+        {% if company.website %}{{ company.website }}{% endif %}
+    </div>
 </div>
 
 <hr>
 
-<h2>Purchase Order: PO-{{ po.id }}</h2>
+<!-- 🔶 PO Info -->
+<h2 style="text-align: center;">Purchase Order - PO-{{ po.id }}</h2>
 <p><strong>Status:</strong> {{ po.status|title }}</p>
 <p><strong>Supplier:</strong> {{ po.supplier.name }}</p>
-<p><strong>Created by:</strong> {{ po.created_by.username }} on {{ po.date }}</p>
+<p><strong>Created By:</strong> {{ po.created_by.username }} on {{ po.date }}</p>
 
-<h4>Items:</h4>
+<!-- 📦 Item List -->
+<div class="section-title">Order Details</div>
 <table>
     <thead>
         <tr>
@@ -45,14 +98,35 @@
             <td>{{ forloop.counter }}</td>
             <td>{{ item.product.name }}</td>
             <td>{{ item.quantity }}</td>
-            <td>{{ item.unit_price }}</td>
-            <td>{{ item.subtotal }}</td>
+            <td>₦{{ item.unit_price|money }}</td>
+            <td>₦{{ item.subtotal|money }}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 
-<p style="text-align: right; margin-top: 20px;"><strong>Total:</strong> ₦ {{ total }}</p>
+<!-- 💸 Totals Section -->
+<table class="totals">
+    <tr>
+        <td><strong>Goods Total:</strong></td>
+        <td>₦{{ goods_total|money }}</td>
+    </tr>
+    {% if expenses_total > 0 %}
+    <tr>
+        <td><strong>Additional Expenses:</strong></td>
+        <td>₦{{ expenses_total|money }}</td>
+    </tr>
+    <tr>
+        <td><strong>Grand Total (Goods + Expenses):</strong></td>
+        <td><strong>₦{{ grand_total|money }}</strong></td>
+    </tr>
+    {% else %}
+    <tr>
+        <td><strong>Grand Total:</strong></td>
+        <td><strong>₦{{ goods_total|money }}</strong></td>
+    </tr>
+    {% endif %}
+</table>
 
 </body>
 </html>

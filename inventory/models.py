@@ -65,14 +65,70 @@ class Category(models.Model):
         return self.name
 
 
+# inventory/models.py
+
 class Store(models.Model):
     name = models.CharField(max_length=100, unique=True)
     location = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    company_profile = models.ForeignKey(
+        CompanyProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='stores'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name
+
+from django.db import models
+from users.models import User
+
+class Quotation(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('sent', 'Sent'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+    ]
+
+    quote_number = models.CharField(max_length=20, unique=True)
+    customer = models.ForeignKey('Customer', on_delete=models.SET_NULL, null=True)
+    store = models.ForeignKey('Store', on_delete=models.SET_NULL, null=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+    note = models.TextField(blank=True, null=True)
+
+    converted_to_invoice = models.BooleanField(default=False)
+    converted_sale = models.OneToOneField(
+        'Sale',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='quotation_source'
+    )
+    # models.py (Quotation)
+    converted_sale = models.ForeignKey('Sale', null=True, blank=True, on_delete=models.SET_NULL, related_name='from_quotation')
+
+
+    def __str__(self):
+        return f"Quote #{self.quote_number}"
+
+    def total_amount(self):
+        return sum(item.subtotal() for item in self.items.all())
+
+
+class QuotationItem(models.Model):
+    quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey('Product', on_delete=models.SET_NULL, null=True)
+    quantity = models.PositiveIntegerField()
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def subtotal(self):
+        return self.quantity * self.unit_price
 
 
 class Supplier(models.Model):
@@ -189,17 +245,21 @@ class StockAdjustment(models.Model):
         self.product.save()
 
 
+from django.conf import settings
+
 class Customer(models.Model):
     name = models.CharField(max_length=255)
     email = models.EmailField(blank=True, null=True)
     phone = models.CharField(max_length=50, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    
 
     def __str__(self):
         return self.name
-
+    
 from django.utils.crypto import get_random_string
 
     

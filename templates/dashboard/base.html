@@ -89,7 +89,10 @@
                         <a class="nav-link" href="{% url 'inventory:sale_receipt_create' %}">Sales Receipt (Cash)</a>
                         <a class="nav-link" href="{% url 'inventory:invoice_create' %}">Sales Invoice (Credit)</a>
                         <a class="nav-link" href="{% url 'inventory:sale_list' %}">Sales History</a>
+                        <a class="nav-link" href="{% url 'inventory:quotation_list' %}"> 📝 Quotation History</a>
                         <a class="nav-link" href="{% url 'inventory:customer_create' %}">Add Customer</a>
+                        <a class="nav-link" href="{% url 'accounting:customer_list' %}">Customers & Balances</a>
+
 
                     </div>
                 </div>
@@ -101,7 +104,7 @@
                 <div class="collapse" id="purchaseMenu">
                     <div class="nav flex-column ms-3">
                         <a class="nav-link" href="{% url 'inventory:create_purchase_order' %}">New Purchase Order</a>
-                        <a class="nav-link" href="{% url 'inventory:purchase_order_list' %}">Purchase Orders</a>
+                        <a class="nav-link" href="{% url 'inventory:purchase_order_list' %}">Purchase History</a>
                         <a class="nav-link" href="{% url 'inventory:supplier_list' %}">Suppliers</a>
                         <a class="nav-link" href="{% url 'accounting:supplier_balances' %}">Supplier Balances</a>
                     </div>
@@ -138,7 +141,6 @@
             <div class="collapse" id="accountingMenu">
                 <div class="nav flex-column ms-3">
                     <a class="nav-link" href="{% url 'accounting:receive_customer_payment' %}">Receive Payment</a>
-                    <a class="nav-link" href="{% url 'accounting:customer_list' %}">Customer Balances</a>
                     <a class="nav-link" href="{% url 'accounting:account_balances' %}">Chart of Accounts</a>
                     <a class="nav-link" href="{% url 'accounting:record_account_transfer' %}">Transfer Funds</a>
                     <a class="nav-link" href="{% url 'accounting:withdraw_funds' %}">Withdraw Funds</a>

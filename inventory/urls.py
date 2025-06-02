@@ -52,13 +52,21 @@ urlpatterns = [
 
     # Purchase Order Exports
     path('purchases/export/pdf/<int:po_id>/', views.export_po_pdf, name='export_po_pdf'),
-    path('purchases/<int:po_id>/receipt/pdf/', views.export_po_receipt_pdf, name='export_po_receipt_pdf'),
+    # path('purchases/<int:po_id>/receipt/pdf/', views.export_po_receipt_pdf, name='export_po_receipt_pdf'),
     path('dashboard/purchases/export/csv/', views.export_purchase_orders_csv, name='export_purchase_orders_csv'),
-    path('dashboard/purchases/export/pdf/', views.export_purchase_orders_pdf, name='export_purchase_orders_pdf'),
+    # path('dashboard/purchases/export/pdf/', views.export_purchase_orders_pdf, name='export_purchase_orders_pdf'),
 
     # Sales (Split Forms: Receipt & Invoice)
     path('sales/add-receipt/', views.sale_receipt_create, name='sale_receipt_create'),
     path('sales/add-invoice/', views.invoice_create, name='invoice_create'),
+    
+    path('quotations/new/', views.quotation_create, name='quotation_create'),
+    path('quotations/', views.quotation_list, name='quotation_list'),
+    path('quotations/<int:pk>/', views.quotation_detail, name='quotation_detail'),  # optional
+    path('quotations/<int:pk>/pdf/', views.quotation_pdf, name='quotation_pdf'),    # optional
+    path('quotations/<int:quotation_id>/convert/', views.convert_quotation_to_invoice, name='convert_quotation'),
+    path('quotations/<int:quotation_id>/edit/', views.quotation_edit, name='quotation_edit'),
+    path('quotations/<int:quotation_id>/delete/', views.quotation_delete, name='quotation_delete'),
 
 
     path('sales/<int:pk>/', views.sale_detail_view, name='sale_detail'),

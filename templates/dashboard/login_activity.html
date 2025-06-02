@@ -1,0 +1,25 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Login History{% endblock %}
+{% block content %}
+<h4>🧾 Login History</h4>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>User</th>
+            <th>IP Address</th>
+            <th>User Agent</th>
+            <th>Timestamp</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr>
+            <td>{{ log.user }}</td>
+            <td>{{ log.ip_address }}</td>
+            <td>{{ log.user_agent }}</td>
+            <td>{{ log.timestamp }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

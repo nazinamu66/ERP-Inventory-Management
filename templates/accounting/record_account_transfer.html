@@ -1,5 +1,7 @@
 {% extends "dashboard/base.html" %}
 {% block content %}
+{% block title %}Transfers{% endblock %}
+
 <h2>Transfer Between Accounts</h2>
 <form method="post">
   {% csrf_token %}

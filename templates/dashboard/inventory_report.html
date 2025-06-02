@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 {% load math_filters %}
-
+{% load formatting %}
 {% block title %}Inventory Report{% endblock %}
 {% block content %}
 
@@ -58,8 +58,8 @@
           <td>{{ stock.product.name }}</td>
           <td>{{ stock.store.name }}</td>
           <td>{{ stock.quantity }}</td>
-          <td>₦{{ stock.cost_price }}</td>
-          <td>₦{{ stock.quantity|mul:stock.cost_price|floatformat:2 }}</td>
+          <td>₦{{ stock.cost_price | money}}</td>
+          <td>₦{{ stock.quantity|mul:stock.cost_price|money }}</td>
           <td>{{ stock.last_updated|date:"Y-m-d H:i" }}</td>
         </tr>
         {% empty %}
@@ -71,7 +71,7 @@
           <th colspan="2" class="text-end">Grand Totals:</th>
           <th>{{ total_quantity }}</th>
           <th></th>
-          <th>₦{{ total_value|floatformat:2 }}</th>
+          <th>₦{{ total_value|money }}</th>
           <th></th>
         </tr>
       </tfoot>

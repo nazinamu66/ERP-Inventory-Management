@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 {% block title %}Balance Sheet{% endblock %}
-
+{% load formatting %}
 {% block content %}
 <div class="container mt-4">
   <h3>📊 Balance Sheet</h3>
@@ -32,12 +32,12 @@
         {% for a in assets %}
           <li class="list-group-item d-flex justify-content-between">
             <span>{{ a.name }}</span>
-            <strong>{{ a.balance|floatformat:2 }}</strong>
+            <strong>₦{{ a.balance|money }}</strong>
           </li>
         {% endfor %}
         <li class="list-group-item active d-flex justify-content-between">
           <span>Total Assets</span>
-          <strong>{{ totals.asset|floatformat:2 }}</strong>
+          <strong>₦{{ totals.asset|money }}</strong>
         </li>
       </ul>
     </div>
@@ -48,19 +48,19 @@
         {% for l in liabilities %}
           <li class="list-group-item d-flex justify-content-between">
             <span>{{ l.name }}</span>
-            <strong>{{ l.balance|floatformat:2 }}</strong>
+            <strong>₦{{ l.balance|money }}</strong>
           </li>
         {% endfor %}
         {% for e in equity %}
           <li class="list-group-item d-flex justify-content-between">
             <span>{{ e.name }}</span>
-            <strong>{{ e.balance|floatformat:2 }}</strong>
+            <strong>₦{{ e.balance|money }}</strong>
           </li>
         {% endfor %}
         <li class="list-group-item active d-flex justify-content-between">
           <span>Total Liabilities + Equity</span>
           {% with total_equity_liability=totals.liability|add:totals.equity %}
-            <strong>{{ total_equity_liability|floatformat:2 }}</strong>
+            <strong>₦{{ total_equity_liability|money }}</strong>
           {% endwith %}
         </li>
         

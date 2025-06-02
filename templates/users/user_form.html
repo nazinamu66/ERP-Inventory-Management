@@ -1,5 +1,7 @@
 {% extends 'dashboard/base.html' %}
 {% load widget_tweaks %}
+{% block title %}Add User{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <h3>{{ form.instance.pk|yesno:"Edit User,Add New User" }}</h3>

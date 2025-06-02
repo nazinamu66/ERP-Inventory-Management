@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+{% load math_filters %}
+{% load formatting %}
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Quotation #{{ quotation.id }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 13px; margin: 30px; }
+        h2, h4 { margin: 0; }
+        .header, .footer { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .table th, .table td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        .totals { margin-top: 20px; float: right; width: 300px; }
+        .totals td { padding: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div style="max-width: 150px; max-height: 60px;">
+        {% if company.logo %}
+            <img src="{{ company.logo.url }}" alt="Logo" style="max-width: 100%; max-height: 60px;">
+        {% endif %}
+    </div>
+    
+    <div style="text-align: right;">
+        <h2>{{ company.name }}</h2>
+        <p>{{ company.address }}<br>
+        Phone: {{ company.contact_phone }}<br>
+        Email: {{ company.contact_email }}</p>
+    </div>
+</div>
+
+<hr>
+
+<h3 style="text-align: center;">Quotation</h3>
+
+<table>
+    <tr>
+        <td><strong>Quotation ID:</strong> {{ quotation.id }}</td>
+        <td><strong>Date:</strong> {{ quotation.date }}</td>
+    </tr>
+    <tr>
+        <td><strong>Customer:</strong> {{ quotation.customer.name }}</td>
+        <td><strong>Store:</strong> {{ quotation.store.name }}</td>
+    </tr>
+</table>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Subtotal</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>₦{{ item.unit_price|money }}</td>
+            <td>₦{{ item.quantity|floatformat:0|add:"0"|money|money|add:"0"|money|multiply:item.unit_price|money }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<table class="totals">
+    <tr>
+        <td><strong>Total:</strong></td>
+        <td><strong>₦{{ quotation.total_amount|money }}</strong></td>
+    </tr>
+</table>
+
+<div style="clear: both;"></div>
+
+{% if quotation.note %}
+<p><strong>Note:</strong><br>{{ quotation.note }}</p>
+{% endif %}
+
+<p style="text-align: center; margin-top: 40px;">Thank you for your business!</p>
+
+</body>
+</html>

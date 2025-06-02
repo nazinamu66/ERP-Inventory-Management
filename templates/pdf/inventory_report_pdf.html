@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+{% load formatting %}
 <html>
 <head>
     <style>
@@ -86,7 +87,7 @@
                 <td>{{ stock.store.name }}</td>
                 <td>{{ stock.quantity }}</td>
                 <td>₦{{ stock.cost_price }}</td>
-                <td>₦{{ stock.quantity|mul:stock.cost_price|floatformat:2 }}</td>
+                <td>₦{{ stock.quantity|mul:stock.cost_price|money }}</td>
                 <td>{{ stock.last_updated|date:"Y-m-d H:i" }}</td>
             </tr>
             {% endfor %}
@@ -95,7 +96,7 @@
 
     <div class="totals">
         <p><strong>Total Quantity:</strong> {{ total_quantity }}</p>
-        <p><strong>Total Inventory Value:</strong> ₦{{ total_value|floatformat:2 }}</p>
+        <p><strong>Total Inventory Value:</strong> ₦{{ total_value|money }}</p>
     </div>
 </body>
 </html>

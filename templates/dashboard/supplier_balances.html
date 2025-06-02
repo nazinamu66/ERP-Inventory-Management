@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 {% block title %}Supplier Balances{% endblock %}
-
+{% load formatting %}
 {% block content %}
 <h3>Supplier Balances</h3>
 
@@ -18,9 +18,9 @@
         {% for row in suppliers %}
         <tr>
             <td>{{ row.supplier.name }}</td>
-            <td>{{ row.invoiced|floatformat:2 }}</td>
-            <td>{{ row.paid|floatformat:2 }}</td>
-            <td>{{ row.balance|floatformat:2 }}</td>
+            <td>{{ row.invoiced|money }}</td>
+            <td>{{ row.paid|money }}</td>
+            <td>{{ row.balance|money }}</td>
             <td>
                 <a href="{% url 'accounting:supplier_ledger' row.supplier.id %}" class="btn btn-sm btn-outline-primary">View</a>
                 

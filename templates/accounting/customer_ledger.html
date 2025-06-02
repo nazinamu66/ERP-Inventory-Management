@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 {% block title %}{{ customer.name }} - Ledger{% endblock %}
-
+{% load formatting %}
 {% block content %}
 <h3>{{ customer.name }} – Ledger</h3>
 
@@ -39,8 +39,8 @@
         <tr>
             <td>{{ entry.date|date:"Y-m-d H:i" }}</td>
             <td>{{ entry.type }}</td>
-            <td>{{ entry.amount|floatformat:2 }}</td>
-            <td>{{ entry.balance|floatformat:2 }}</td>
+            <td>₦{{ entry.amount|money }}</td>
+            <td>₦{{ entry.balance|money }}</td>
             <td>{{ entry.note }}</td>
         </tr>
         {% empty %}

@@ -1,0 +1,53 @@
+{% extends 'dashboard/base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}Create Quotation{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>Create Quotation</h2>
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="card mb-4 p-3">
+            <h5>Quotation Info</h5>
+            {% for field in form %}
+                <div class="mb-3">
+                    <label>{{ field.label }}</label>
+                    {{ field|add_class:"form-control" }}
+                    {% if field.errors %}
+                        <div class="text-danger small">{{ field.errors|striptags }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="card p-3">
+            <h5>Quotation Items</h5>
+            {{ formset.management_form }}
+            {% for form in formset %}
+                <div class="border rounded p-2 mb-3">
+                    <div class="row">
+                        {% for field in form.visible_fields %}
+                            <div class="col-md-4 mb-2">
+                                <label>{{ field.label }}</label>
+                                {{ field|add_class:"form-control" }}
+                                {% if field.errors %}
+                                    <div class="text-danger small">{{ field.errors|striptags }}</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% if formset.can_delete %}
+                        <div class="form-check mt-1">
+                            {{ form.DELETE }} <label class="form-check-label">Remove item</label>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <button type="submit" class="btn btn-success mt-3">💾 Save Quotation</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,5 +1,6 @@
 {% extends 'dashboard/base.html' %}
 {% block content %}
+{% load formatting %}
 <h3>Customer Aging Report – {{ today }}</h3>
 
 <form method="get" class="mb-4 d-flex align-items-center gap-2">
@@ -48,10 +49,10 @@
           <td>#{{ row.invoice.id }}</td>
           <td>{{ row.date }}</td>
           <td>{{ row.bucket }}</td>
-          <td>{{ row.amount|floatformat:2 }}</td>
-          <td>{{ row.paid|floatformat:2 }}</td>
-          <td>{{ row.balance|floatformat:2 }}</td>
-          <td>{{ row.due_days }} days</td>
+          <td>₦{{ row.amount|money }}</td>
+          <td>₦{{ row.paid|money }}</td>
+          <td>₦{{ row.balance|money }}</td>
+          <td>₦{{ row.due_days }} days</td>
         </tr>
         {% endfor %}
       </tbody>
