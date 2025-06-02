@@ -31,10 +31,21 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = ['*']
 
-# ERPNext API Credentials
-# ERP_API_URL = "https://nazinamu66.erpnext.com"
-# ERP_API_KEY = "6938366d9069054"
-# ERP_API_SECRET = "c60a6c71952e773"
+import logging
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+}
 
 
 # Application definition
@@ -90,20 +101,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'erp_inventory',  # Your database name
-#         'USER': 'capo',           # Your PostgreSQL username
-#         'PASSWORD': 'Shatuwa66.', # Your PostgreSQL password
-#         'HOST': 'localhost',
-#         'PORT': '5432',           # Default PostgreSQL port
-#     }
-# }
 
 import dj_database_url
 
