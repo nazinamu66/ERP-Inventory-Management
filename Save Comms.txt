@@ -66,6 +66,9 @@ TransactionLine.objects.all().delete()
 Transaction.objects.all().delete()
 Account.objects.all().delete()
 
+When ready to deploy to Render, run:
+python manage.py collectstatic
+
 backup command
 0 1 * * * ~/backup_to_dropbox.sh >> ~/bklogs/backup_log.txt 2>&1
 ~/backup_to_dropbox.sh

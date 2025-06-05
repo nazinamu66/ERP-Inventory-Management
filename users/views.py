@@ -13,22 +13,12 @@ from django.utils.timezone import now
 from django.db.models.functions import TruncDate
 from datetime import timedelta
 import json
+from django.db.models import Q
 from inventory.models import Product, Stock
 from inventory.models import Sale, SaleItem
 from django.db.models import Sum, F, ExpressionWrapper, DecimalField
 from accounting.models import ExpenseEntry
 from users.models import LoginActivity
-
-
-# @login_required
-# def login_activity_view(request):
-#     logs = LoginActivity.objects.all().order_by('-timestamp')
-#     if not request.user.is_superuser:
-#         logs = logs.filter(user=request.user)
-#     return render(request, 'dashboard/login_activity.html', {'logs': logs})
-
-
-
 
 def is_admin_or_manager(user):
     return user.is_authenticated and (user.role == 'admin' or user.role == 'manager')
@@ -140,9 +130,6 @@ class CustomLoginView(LoginView):
 
         return reverse_lazy('default_dashboard')
 
-
-
-
 def get_sales_over_time():
     today = now().date()
     start_of_week = today - timedelta(days=6)
@@ -162,7 +149,6 @@ def get_sales_over_time():
 
     return json.dumps(labels), json.dumps(values)
 
-
 def get_top_selling_products(limit=5):
     top_products = (
         SaleItem.objects
@@ -175,7 +161,6 @@ def get_top_selling_products(limit=5):
     values = [p['total_qty'] for p in top_products]
 
     return json.dumps(labels), json.dumps(values)
-
 
 def get_sales_by_store():
     store_sales = (
@@ -246,8 +231,6 @@ def admin_dashboard(request):
     # 🧮 Net Profit
     net_profit = revenue - cogs - expenses
 
-  
-
     # Metrics
     total_products = Product.objects.count()
     total_stock = Stock.objects.aggregate(total=Sum('quantity'))['total'] or 0
@@ -307,8 +290,6 @@ def get_active_store(self, request):
         return self.stores.filter(id=store_id).first()
     return self.stores.first()
 
-
-from django.db.models import Q
 
 @role_required(['manager'])
 @login_required
@@ -381,9 +362,6 @@ def manager_dashboard(request):
         'recent_purchase_orders': PurchaseOrder.objects.filter(created_by=user).order_by('-date')[:5],
     })
 
-from django.contrib import messages
-from django.shortcuts import render
-from inventory.models import Stock, Sale
 
 @role_required(allowed_roles=['staff'])
 def store_dashboard(request):

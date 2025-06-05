@@ -45,7 +45,13 @@ import os
 from django.contrib.staticfiles import finders
 from accounting.services import reverse_transaction
 from django.utils import timezone
+from django.views.generic import View
 
+class ServiceWorkerView(View):
+    def get(self, request, *args, **kwargs):
+        sw_path = os.path.join(settings.BASE_DIR, 'static/js/service-worker.js')
+        with open(sw_path, 'rb') as f:
+            return HttpResponse(f.read(), content_type='application/javascript')
 
 
 @login_required

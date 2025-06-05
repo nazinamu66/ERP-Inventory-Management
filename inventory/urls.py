@@ -11,6 +11,7 @@ from .views import (
 
 
 
+
 app_name = 'inventory'
 
 urlpatterns = [
@@ -55,6 +56,7 @@ urlpatterns = [
     # path('purchases/<int:po_id>/receipt/pdf/', views.export_po_receipt_pdf, name='export_po_receipt_pdf'),
     path('dashboard/purchases/export/csv/', views.export_purchase_orders_csv, name='export_purchase_orders_csv'),
     # path('dashboard/purchases/export/pdf/', views.export_purchase_orders_pdf, name='export_purchase_orders_pdf'),
+
 
     # Sales (Split Forms: Receipt & Invoice)
     path('sales/add-receipt/', views.sale_receipt_create, name='sale_receipt_create'),

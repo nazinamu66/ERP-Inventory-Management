@@ -31,21 +31,10 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = ['*']
 
-import logging
-
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'DEBUG',
-    },
-}
+# ERPNext API Credentials
+# ERP_API_URL = "https://nazinamu66.erpnext.com"
+# ERP_API_KEY = "6938366d9069054"
+# ERP_API_SECRET = "c60a6c71952e773"
 
 
 # Application definition
@@ -102,6 +91,20 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 
+# Database
+# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'erp_inventory',  # Your database name
+#         'USER': 'capo',           # Your PostgreSQL username
+#         'PASSWORD': 'Shatuwa66.', # Your PostgreSQL password
+#         'HOST': 'localhost',
+#         'PORT': '5432',           # Default PostgreSQL port
+#     }
+# }
+
 import dj_database_url
 
 DATABASES = {
@@ -145,6 +148,13 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
+STATIC_URL = 'static/'
+
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 
 
 # Default primary key field type
@@ -162,13 +172,9 @@ LOGIN_REDIRECT_URL = '/dashboard/'
 
 import os
 
-STATIC_URL = '/static/'  # leading slash = essential
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # string path, not Path()
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
-]
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
 # MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+

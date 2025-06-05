@@ -19,6 +19,8 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import RedirectView
+from inventory.views import ServiceWorkerView
+
 from django.contrib.auth import views as auth_views
 from users.views import (
     CustomLoginView,
@@ -46,6 +48,8 @@ urlpatterns = [
     path('dashboard/', default_dashboard, name='default_dashboard'),
     path('accounts/login/', auth_views.LoginView.as_view(), name='account_login'),  # 👈 ADD THIS
     path('dashboard/', include(('inventory.urls', 'inventory'), namespace='inventory')),
+    path('service-worker.js', ServiceWorkerView.as_view(), name='service-worker'),
+    
 
 ]
 

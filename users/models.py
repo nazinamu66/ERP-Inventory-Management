@@ -1,5 +1,7 @@
 from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.db import models
+from django.db import models
+from django.conf import settings
 
 class User(AbstractUser):
     ROLE_CHOICES = [
@@ -11,7 +13,6 @@ class User(AbstractUser):
     ]
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='staff')
-
     # 💡 Changed from ForeignKey to ManyToManyField
     stores = models.ManyToManyField("inventory.Store", blank=True)
 
@@ -28,8 +29,6 @@ class User(AbstractUser):
     can_adjust_stock = models.BooleanField(default=False)
     can_transfer_stock = models.BooleanField(default=False)
     can_approve_transfers = models.BooleanField(default=False)
-
-
     groups = models.ManyToManyField(Group, related_name="custom_user_groups", blank=True)
     user_permissions = models.ManyToManyField(Permission, related_name="custom_user_permissions", blank=True)
 
@@ -40,9 +39,6 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.role})"
-
-from django.db import models
-from django.conf import settings
 
 class LoginActivity(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)

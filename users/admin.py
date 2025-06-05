@@ -10,5 +10,4 @@ class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
         (None, {'fields': ('role', 'can_view_transfers')}),
     )
-
 admin.site.register(User, CustomUserAdmin)
