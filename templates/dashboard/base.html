@@ -3,377 +3,303 @@
 {% load static %}
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <link rel="manifest" href="{% static 'manifest.json' %}">
-    <meta name="theme-color" content="#0a3d62">
+  <link rel="manifest" href="{% static 'manifest.json' %}" />
+  <meta name="theme-color" content="#0a3d62" />
 
-    <!-- Service Worker Registration -->
-    <script>
+  <script>
     if ("serviceWorker" in navigator) {
-        navigator.serviceWorker
+      navigator.serviceWorker
         .register("/service-worker.js")
         .then(() => console.log("✅ Service Worker registered"))
-        .catch(err => console.error("❌ SW registration failed", err));
+        .catch((err) => console.error("❌ SW registration failed", err));
     }
-    </script>
+  </script>
 
-    <title>{% block title %}Dashboard{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            display: flex;
-            min-height: 100vh;
-        }
-        .sidebar {
-            width: 250px;
-            background-color: #f8f9fa;
-            padding: 20px;
-        }
-        .main {
-            flex-grow: 1;
-            padding: 20px;
-        }
-        .sidebar .nav-link.active {
-            font-weight: bold;
-        }
-        .top-nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .logout-link {
-            color: red;
-            text-decoration: none;
-        }
-    </style>
+  <title>{% block title %}Dashboard{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .container-wrapper {
+      display: flex;
+      flex-grow: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 250px;
+      background-color: #f8f9fa;
+      padding: 20px;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+
+    .main {
+      flex-grow: 1;
+      padding: 20px;
+      overflow-x: auto;
+    }
+
+    .sidebar .nav-link.active {
+      font-weight: bold;
+    }
+
+    .top-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .logout-link {
+      color: red;
+      text-decoration: none;
+    }
+
+    .hamburger {
+      display: none;
+      font-size: 1.5rem;
+      margin: 10px;
+      cursor: pointer;
+    }
+
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 1029;
+    }
+
+    .overlay.show {
+      display: block;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: -250px;
+        z-index: 1030;
+        transition: left 0.3s ease;
+      }
+
+      .sidebar.show {
+        left: 0;
+      }
+
+      .hamburger {
+        display: inline-block;
+      }
+
+      .main {
+        width: 100%;
+      }
+    }
+  </style>
 </head>
+
 <body>
-    <div class="sidebar">
-        <h5>IIS Software</h5>
-        <nav class="nav flex-column">
+  <!-- Hamburger for Mobile -->
+  <div class="d-md-none p-2 bg-light border-bottom">
+    <span class="hamburger" onclick="toggleSidebar()">☰</span>
+  </div>
 
-            <!-- Dashboard -->
-            <a class="nav-link" href="{% url 'inventory:dashboard' %}">Dashboard</a>
-            <li class="nav-item">
-                <a class="nav-link" href="{% url 'accounting:notifications_list' %}">
-                    🔔 Notifications
-                  {% if request.user.notifications_unread_count %}
-                    <span class="badge bg-danger">{{ request.user.notifications_unread_count }}</span>
-                    {% endif %}
-                </a>
-              </li>
-              
-            <!-- Inventory -->
-            <a class="nav-link" data-bs-toggle="collapse" href="#inventoryMenu">Inventory</a>
-            <div class="collapse" id="inventoryMenu">
-                <div class="nav flex-column ms-3">
-                    <a class="nav-link" href="{% url 'inventory:product_list' %}">Products</a>
-                    <a class="nav-link" href="{% url 'inventory:stock_list' %}">Stock Overview</a>
-                    <a class="nav-link" href="{% url 'inventory:inventory_report' %}">Inventory Report</a>
-                    <a class="nav-link" href="{% url 'inventory:inventory_aging_report' %}">📊 Inventory Aging</a>
+  <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
 
-                </div>
-            </div>
+  <div class="container-wrapper">
+    <div class="sidebar" id="sidebar">
+      <h5>IIS Software</h5>
+      <nav class="nav flex-column">
+        {% comment %} Full nav starts here {% endcomment %}
+        {% block sidebar_nav %}
+<!-- Dashboard -->
+<a class="nav-link" href="{% url 'inventory:dashboard' %}">Dashboard</a>
+<li class="nav-item">
+    <a class="nav-link" href="{% url 'accounting:notifications_list' %}">
+        🔔 Notifications
+      {% if request.user.notifications_unread_count %}
+        <span class="badge bg-danger">{{ request.user.notifications_unread_count }}</span>
+        {% endif %}
+    </a>
+  </li>
+  
+<!-- Inventory -->
+<a class="nav-link" data-bs-toggle="collapse" href="#inventoryMenu">Inventory</a>
+<div class="collapse" id="inventoryMenu">
+    <div class="nav flex-column ms-3">
+        <a class="nav-link" href="{% url 'inventory:product_list' %}">Products</a>
+        <a class="nav-link" href="{% url 'inventory:stock_list' %}">Stock Overview</a>
+        <a class="nav-link" href="{% url 'inventory:inventory_report' %}">Inventory Report</a>
+        <a class="nav-link" href="{% url 'inventory:inventory_aging_report' %}">📊 Inventory Aging</a>
 
-            <!-- Stock Management -->
-            {% if request.user.can_adjust_stock or request.user.can_transfer_stock or request.user.can_view_transfers or request.user.is_superuser %}
-                <a class="nav-link" data-bs-toggle="collapse" href="#stockManagementMenu">Stock Management</a>
-                <div class="collapse" id="stockManagementMenu">
-                    <div class="nav flex-column ms-3">
-                        {% if request.user.can_adjust_stock or request.user.is_superuser %}
-                            <a class="nav-link" href="{% url 'inventory:stock_adjustment_create' %}">Adjust Stock</a>
-                        {% endif %}
-                        {% if request.user.can_transfer_stock or request.user.is_superuser %}
-                            <a class="nav-link" href="{% url 'inventory:stock_transfer_create' %}">Transfer Stock</a>
-                        {% endif %}
-                        {% if request.user.can_view_transfers or request.user.is_superuser %}
-                            <a class="nav-link" href="{% url 'inventory:stock_transfer_list' %}">Transfer History</a>
-                        {% endif %}
-                    </div>
-                </div>
+    </div>
+</div>
+
+<!-- Stock Management -->
+{% if request.user.can_adjust_stock or request.user.can_transfer_stock or request.user.can_view_transfers or request.user.is_superuser %}
+    <a class="nav-link" data-bs-toggle="collapse" href="#stockManagementMenu">Stock Management</a>
+    <div class="collapse" id="stockManagementMenu">
+        <div class="nav flex-column ms-3">
+            {% if request.user.can_adjust_stock or request.user.is_superuser %}
+                <a class="nav-link" href="{% url 'inventory:stock_adjustment_create' %}">Adjust Stock</a>
             {% endif %}
-
-            <!-- Sales -->
-            {% if request.user.role in 'sales staff clerk manager' or request.user.is_superuser %}
-                <a class="nav-link" data-bs-toggle="collapse" href="#salesMenu">Sales</a>
-                <div class="collapse" id="salesMenu">
-                    <div class="nav flex-column ms-3">
-                        <a class="nav-link" href="{% url 'inventory:sale_receipt_create' %}">Sales Receipt (Cash)</a>
-                        <a class="nav-link" href="{% url 'inventory:invoice_create' %}">Sales Invoice (Credit)</a>
-                        <a class="nav-link" href="{% url 'inventory:sale_list' %}">Sales History</a>
-                        <a class="nav-link" href="{% url 'inventory:quotation_list' %}"> 📝 Quotation History</a>
-                        <a class="nav-link" href="{% url 'inventory:customer_create' %}">Add Customer</a>
-                        <a class="nav-link" href="{% url 'accounting:customer_list' %}">Customers & Balances</a>
-
-
-                    </div>
-                </div>
+            {% if request.user.can_transfer_stock or request.user.is_superuser %}
+                <a class="nav-link" href="{% url 'inventory:stock_transfer_create' %}">Transfer Stock</a>
             {% endif %}
-
-            <!-- Purchases -->
-            {% if request.user.role in 'manager admin' or request.user.is_superuser %}
-                <a class="nav-link" data-bs-toggle="collapse" href="#purchaseMenu">Purchases</a>
-                <div class="collapse" id="purchaseMenu">
-                    <div class="nav flex-column ms-3">
-                        <a class="nav-link" href="{% url 'inventory:create_purchase_order' %}">New Purchase Order</a>
-                        <a class="nav-link" href="{% url 'inventory:purchase_order_list' %}">Purchase History</a>
-                        <a class="nav-link" href="{% url 'inventory:supplier_list' %}">Suppliers</a>
-                        <a class="nav-link" href="{% url 'accounting:supplier_balances' %}">Supplier Balances</a>
-                    </div>
-                </div>
+            {% if request.user.can_view_transfers or request.user.is_superuser %}
+                <a class="nav-link" href="{% url 'inventory:stock_transfer_list' %}">Transfer History</a>
             {% endif %}
+        </div>
+    </div>
+{% endif %}
 
-            <!-- Reports -->
+<!-- Sales -->
+{% if request.user.role in 'sales staff clerk manager' or request.user.is_superuser %}
+    <a class="nav-link" data-bs-toggle="collapse" href="#salesMenu">Sales</a>
+    <div class="collapse" id="salesMenu">
+        <div class="nav flex-column ms-3">
+            <a class="nav-link" href="{% url 'inventory:sale_receipt_create' %}">Sales Receipt (Cash)</a>
+            <a class="nav-link" href="{% url 'inventory:invoice_create' %}">Sales Invoice (Credit)</a>
+            <a class="nav-link" href="{% url 'inventory:sale_list' %}">Sales History</a>
+            <a class="nav-link" href="{% url 'inventory:quotation_list' %}"> 📝 Quotation History</a>
+            <a class="nav-link" href="{% url 'inventory:customer_create' %}">Add Customer</a>
+            <a class="nav-link" href="{% url 'accounting:customer_list' %}">Customers & Balances</a>
+
+
+        </div>
+    </div>
+{% endif %}
+
+<!-- Purchases -->
+{% if request.user.role in 'manager admin' or request.user.is_superuser %}
+    <a class="nav-link" data-bs-toggle="collapse" href="#purchaseMenu">Purchases</a>
+    <div class="collapse" id="purchaseMenu">
+        <div class="nav flex-column ms-3">
+            <a class="nav-link" href="{% url 'inventory:create_purchase_order' %}">New Purchase Order</a>
+            <a class="nav-link" href="{% url 'inventory:purchase_order_list' %}">Purchase History</a>
+            <a class="nav-link" href="{% url 'inventory:supplier_list' %}">Suppliers</a>
+            <a class="nav-link" href="{% url 'accounting:supplier_balances' %}">Supplier Balances</a>
+        </div>
+    </div>
+{% endif %}
+
+<!-- Reports -->
 <a class="nav-link" data-bs-toggle="collapse" href="#reportsMenu" role="button" aria-expanded="false" aria-controls="reportsMenu">
-    Reports
+Reports
 </a>
 <div class="collapse" id="reportsMenu">
-  <div class="nav flex-column ms-3">
-    
-    <!-- Visible to all roles who have access to sales/inventory -->
-    <a class="nav-link" href="{% url 'inventory:sale_list' %}?report=true">Sales Report</a>
-    <a class="nav-link" href="{% url 'inventory:inventory_report' %}">Inventory Report</a>
-    <a class="nav-link" href="{% url 'inventory:purchase_order_list' %}">Purchase Orders</a>
-    <a class="nav-link" href="{% url 'accounting:expense_history' %}">Expense History</a>
-    <a class="nav-link" href="{% url 'accounting:customer_aging_report' %}">Customer Aging Report</a>
+<div class="nav flex-column ms-3">
 
-    {% if request.user.is_superuser or request.user.role in 'admin accountant manager' %}
-      <a class="nav-link" href="{% url 'accounting:profit_loss_report' %}">📊 Profit & Loss</a>
-      <a class="nav-link" href="{% url 'accounting:profit_loss_detail_report' %}">📊 P&L Detail</a>
-      <a class="nav-link" href="{% url 'accounting:trial_balance' %}">🧾 Trial Balance</a>
-      <a class="nav-link" href="{% url 'accounting:general_ledger' %}">📘 General Ledger</a>
-      <a class="nav-link" href="{% url 'accounting:balance_sheet' %}">📊 Balance Sheet</a>
-    {% endif %}
-    
-  </div>
+<!-- Visible to all roles who have access to sales/inventory -->
+<a class="nav-link" href="{% url 'inventory:sale_list' %}?report=true">Sales Report</a>
+<a class="nav-link" href="{% url 'inventory:inventory_report' %}">Inventory Report</a>
+<a class="nav-link" href="{% url 'inventory:purchase_order_list' %}">Purchase Orders</a>
+<a class="nav-link" href="{% url 'accounting:expense_history' %}">Expense History</a>
+<a class="nav-link" href="{% url 'accounting:customer_aging_report' %}">Customer Aging Report</a>
+
+{% if request.user.is_superuser or request.user.role in 'admin accountant manager' %}
+<a class="nav-link" href="{% url 'accounting:profit_loss_report' %}">📊 Profit & Loss</a>
+<a class="nav-link" href="{% url 'accounting:profit_loss_detail_report' %}">📊 P&L Detail</a>
+<a class="nav-link" href="{% url 'accounting:trial_balance' %}">🧾 Trial Balance</a>
+<a class="nav-link" href="{% url 'accounting:general_ledger' %}">📘 General Ledger</a>
+<a class="nav-link" href="{% url 'accounting:balance_sheet' %}">📊 Balance Sheet</a>
+{% endif %}
+
 </div>
-        <!-- Accounting Menu -->
-            {% if request.user.role in 'accountant admin manager' or request.user.is_superuser %}
-            <a class="nav-link" data-bs-toggle="collapse" href="#accountingMenu">Accounting</a>
-            <div class="collapse" id="accountingMenu">
-                <div class="nav flex-column ms-3">
-                    <a class="nav-link" href="{% url 'accounting:receive_customer_payment' %}">Receive Payment</a>
-                    <a class="nav-link" href="{% url 'accounting:account_balances' %}">Chart of Accounts</a>
-                    <a class="nav-link" href="{% url 'accounting:record_account_transfer' %}">Transfer Funds</a>
-                    <a class="nav-link" href="{% url 'accounting:withdraw_funds' %}">Withdraw Funds</a>
-                    <a class="nav-link" href="{% url 'accounting:record_account_deposit' %}">💰 Deposit Funds</a>
-                    <a class="nav-link" href="{% url 'accounting:record_expense' %}">💸 Record Expense</a>
+</div>
+<!-- Accounting Menu -->
+{% if request.user.role in 'accountant admin manager' or request.user.is_superuser %}
+<a class="nav-link" data-bs-toggle="collapse" href="#accountingMenu">Accounting</a>
+<div class="collapse" id="accountingMenu">
+    <div class="nav flex-column ms-3">
+        <a class="nav-link" href="{% url 'accounting:receive_customer_payment' %}">Receive Payment</a>
+        <a class="nav-link" href="{% url 'accounting:account_balances' %}">Chart of Accounts</a>
+        <a class="nav-link" href="{% url 'accounting:record_account_transfer' %}">Transfer Funds</a>
+        <a class="nav-link" href="{% url 'accounting:withdraw_funds' %}">Withdraw Funds</a>
+        <a class="nav-link" href="{% url 'accounting:record_account_deposit' %}">💰 Deposit Funds</a>
+        <a class="nav-link" href="{% url 'accounting:record_expense' %}">💸 Record Expense</a>
 
-                      
-                </div>
-            </div>
-            {% endif %}
+          
+    </div>
+</div>
+{% endif %}
 
 
-            <!-- Management -->
-            {% if request.user.is_superuser or request.user.role == 'manager' %}
-                <a class="nav-link" data-bs-toggle="collapse" href="#managementMenu">Management</a>
-                <div class="collapse" id="managementMenu">
-                    <div class="nav flex-column ms-3">
-                        <a class="nav-link" href="{% url 'users:user_list' %}">Manage Users</a>
-                        <a class="nav-link" href="{% url 'users:user_create' %}">Add User</a>
-                        <a class="nav-link" href="{% url 'inventory:audit_log_list' %}">Audit Logs</a>
-                    </div>
-                </div>
-            {% endif %}
+<!-- Management -->
+{% if request.user.is_superuser or request.user.role == 'manager' %}
+    <a class="nav-link" data-bs-toggle="collapse" href="#managementMenu">Management</a>
+    <div class="collapse" id="managementMenu">
+        <div class="nav flex-column ms-3">
+            <a class="nav-link" href="{% url 'users:user_list' %}">Manage Users</a>
+            <a class="nav-link" href="{% url 'users:user_create' %}">Add User</a>
+            <a class="nav-link" href="{% url 'inventory:audit_log_list' %}">Audit Logs</a>
+        </div>
+    </div>
+{% endif %}
 
-            <!-- Admin Panel -->
-            {% if request.user.is_superuser %}
-                <a class="nav-link" href="{% url 'admin:index' %}">Admin Panel</a>
-            {% endif %}
-        </nav>
+<!-- Admin Panel -->
+{% if request.user.is_superuser %}
+    <a class="nav-link" href="{% url 'admin:index' %}">Admin Panel</a>
+{% endif %}        {% endblock %}
+        {% comment %} Full nav ends here {% endcomment %}
+      </nav>
     </div>
 
     <div class="main">
-        {% if messages %}
-            {% for message in messages %}
-                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
 
-        <div class="top-nav">
-            <span>Hi, {{ request.user.username }}</span>
-            <a href="{% url 'logout' %}" class="logout-link">Logout</a>
-        </div>
+      <div class="top-nav">
+        <span>Hi, {{ request.user.username }}</span>
+        <a href="{% url 'logout' %}" class="logout-link">Logout</a>
+      </div>
 
-        {% block content %}
-        <!-- Page content goes here -->
-        {% endblock %}
-        {% load tz %}
-{% now "Y" as current_year %}
-<footer class="text-center text-muted py-3 mt-5 border-top bg-light">
-  <small>
-    &copy; {{ current_year }} Invicta Technologies Limited. All rights reserved. —
-    <a href="https://www.facebook.com/nbbibrahim" target="_blank" class="text-decoration-none">Website</a>
-  </small>
-</footer>
+      {% block content %}{% endblock %}
 
+      {% load tz %}
+      {% now "Y" as current_year %}
+      <footer class="text-center text-muted py-3 mt-5 border-top bg-light">
+        <small>
+          &copy; {{ current_year }} Invicta Technologies Limited. All rights reserved. —
+          <a href="https://www.facebook.com/nbbibrahim" target="_blank" class="text-decoration-none">Website</a>
+        </small>
+      </footer>
     </div>
+  </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-    
-</body>
-
-
-</html>
-<!DOCTYPE html>
-<html lang="en">
-{% load static %}
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
-    <link rel="manifest" href="{% static 'manifest.json' %}">
-    <meta name="theme-color" content="#0a3d62">
-
-    <!-- Service Worker Registration -->
-    <script>
-    if ("serviceWorker" in navigator) {
-        navigator.serviceWorker
-        .register("/service-worker.js")
-        .then(() => console.log("✅ Service Worker registered"))
-        .catch(err => console.error("❌ SW registration failed", err));
-    }
-    </script>
-
-    <title>{% block title %}Dashboard{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            display: flex;
-            min-height: 100vh;
-            flex-direction: column;
-        }
-        .container-wrapper {
-            display: flex;
-            flex: 1;
-        }
-        .sidebar {
-            width: 250px;
-            background-color: #f8f9fa;
-            padding: 20px;
-        }
-        .main {
-            flex-grow: 1;
-            padding: 20px;
-        }
-        .sidebar .nav-link.active {
-            font-weight: bold;
-        }
-        .top-nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .logout-link {
-            color: red;
-            text-decoration: none;
-        }
-        @media (max-width: 768px) {
-            .sidebar {
-                position: fixed;
-                top: 0;
-                bottom: 0;
-                left: -250px;
-                z-index: 1030;
-                transition: left 0.3s ease;
-            }
-            .sidebar.show {
-                left: 0;
-            }
-            .main {
-                padding: 1rem;
-                width: 100%;
-            }
-            .hamburger {
-                display: inline-block;
-                font-size: 1.5rem;
-                cursor: pointer;
-            }
-        }
-        .hamburger {
-            display: none;
-        }
-        @media (max-width: 768px) {
-            .hamburger {
-                display: inline-block;
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- Hamburger menu toggle button for mobile -->
-    <div class="d-md-none p-2 bg-light border-bottom">
-        <span class="hamburger" onclick="toggleSidebar()">☰</span>
-    </div>
-
-    <div class="container-wrapper">
-        <div class="sidebar" id="sidebar">
-            <h5>IIS Software</h5>
-            <nav class="nav flex-column">
-                {% comment %} Start: Original Nav Links {% endcomment %}
-                <!-- Dashboard -->
-                <a class="nav-link" href="{% url 'inventory:dashboard' %}">Dashboard</a>
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'accounting:notifications_list' %}">
-                        🔔 Notifications
-                        {% if request.user.notifications_unread_count %}
-                            <span class="badge bg-danger">{{ request.user.notifications_unread_count }}</span>
-                        {% endif %}
-                    </a>
-                </li>
-                {% comment %} Insert your full nav here exactly as in your original file {% endcomment %}
-                {% block sidebar_nav %}
-                    <!-- All original sidebar nav items go here -->
-                {% endblock %}
-                {% comment %} End: Original Nav Links {% endcomment %}
-            </nav>
-        </div>
-
-        <div class="main">
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-
-            <div class="top-nav">
-                <span>Hi, {{ request.user.username }}</span>
-                <a href="{% url 'logout' %}" class="logout-link">Logout</a>
-            </div>
-
-            {% block content %}{% endblock %}
-
-            {% load tz %}
-            {% now "Y" as current_year %}
-            <footer class="text-center text-muted py-3 mt-5 border-top bg-light">
-              <small>
-                &copy; {{ current_year }} Invicta Technologies Limited. All rights reserved. —
-                <a href="https://www.facebook.com/nbbibrahim" target="_blank" class="text-decoration-none">Website</a>
-              </small>
-            </footer>
-        </div>
-    </div>
-
-    <script>
+  <script>
     function toggleSidebar() {
-        const sidebar = document.getElementById('sidebar');
-        sidebar.classList.toggle('show');
+      const sidebar = document.getElementById("sidebar");
+      const overlay = document.getElementById("overlay");
+      sidebar.classList.toggle("show");
+      overlay.classList.toggle("show");
     }
-    </script>
+  </script>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
