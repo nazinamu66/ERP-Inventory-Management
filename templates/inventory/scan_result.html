@@ -1,0 +1,25 @@
+{% extends 'dashboard/base.html' %}
+{% block title %}Product Scanned{% endblock %}
+
+{% block content %}
+<h4>✅ Product Found</h4>
+
+<div class="card shadow-sm p-3 mb-3">
+  <h5 class="card-title">{{ product.name }}</h5>
+
+  {% if product.image %}
+    <img src="{{ product.image.url }}" class="img-fluid mb-2" style="max-height: 200px;" />
+  {% endif %}
+
+  <p><strong>Code:</strong> {{ product.barcode }}</p>
+
+  <div class="d-grid gap-2">
+    <a href="{% url 'inventory:product_detail' product.pk %}" class="btn btn-outline-primary">🔎 View Product</a>
+    <a href="{% url 'inventory:invoice_create' %}?product={{ product.pk }}" class="btn btn-outline-success">🧾 Add to Invoice</a>
+    <a href="{% url 'inventory:stock_adjustment_create' %}?product={{ product.pk }}" class="btn btn-outline-warning">🛠️ Adjust Stock</a>
+    <a href="{% url 'inventory:stock_transfer_create' %}?product={{ product.pk }}" class="btn btn-outline-secondary">📦 Transfer Stock</a>
+  </div>
+</div>
+
+<a href="{% url 'inventory:scan_product' %}" class="btn btn-link mt-3">🔁 Scan Another</a>
+{% endblock %}

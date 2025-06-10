@@ -47,6 +47,23 @@ from accounting.services import reverse_transaction
 from django.utils import timezone
 from django.views.generic import View
 
+from django.shortcuts import render, redirect
+from .models import Product  # adjust if your model is elsewhere
+
+def scan_product(request):
+    return render(request, "inventory/scan_product.html")
+
+
+def handle_scan_redirect(request):
+    code = request.GET.get("code", "").strip()
+    try:
+        product = Product.objects.get(barcode=code)
+        return render(request, "inventory/scan_result.html", {"product": product})
+    except Product.DoesNotExist:
+        return render(request, "inventory/scan_product.html", {
+            "error": f"No product found for code: {code}"
+        })
+
 class ServiceWorkerView(View):
     def get(self, request, *args, **kwargs):
         sw_path = os.path.join(settings.BASE_DIR, 'static/js/service-worker.js')

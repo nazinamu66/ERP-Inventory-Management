@@ -46,9 +46,6 @@ urlpatterns = [
     path('purchases/<int:pk>/delete/', views.purchase_order_delete_view, name='purchase_delete'),
     path('api/get-product-prices/', views.get_product_prices, name='get_product_prices'),
     path('purchases/<int:po_id>/received/delete/', views.purchase_received_delete_view, name='purchase_received_delete'),
-
-
-
     path('purchases/receive/<int:po_id>/', views.receive_purchase_order, name='receive_purchase_order'),
 
     # Purchase Order Exports
@@ -61,6 +58,9 @@ urlpatterns = [
     # Sales (Split Forms: Receipt & Invoice)
     path('sales/add-receipt/', views.sale_receipt_create, name='sale_receipt_create'),
     path('sales/add-invoice/', views.invoice_create, name='invoice_create'),
+
+    path("scan/", views.scan_product, name="scan_product"),
+    path("product/scan/", views.handle_scan_redirect, name="handle_scan_redirect"),
     
     path('quotations/new/', views.quotation_create, name='quotation_create'),
     path('quotations/', views.quotation_list, name='quotation_list'),

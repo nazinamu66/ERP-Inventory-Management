@@ -176,6 +176,8 @@
     <a class="nav-link" data-bs-toggle="collapse" href="#salesMenu">Sales</a>
     <div class="collapse" id="salesMenu">
         <div class="nav flex-column ms-3">
+            
+            <a class="nav-link" href="{% url 'inventory:scan_product' %}">📷 Scan Product</a>
             <a class="nav-link" href="{% url 'inventory:sale_receipt_create' %}">Sales Receipt (Cash)</a>
             <a class="nav-link" href="{% url 'inventory:invoice_create' %}">Sales Invoice (Credit)</a>
             <a class="nav-link" href="{% url 'inventory:sale_list' %}">Sales History</a>
