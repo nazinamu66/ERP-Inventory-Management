@@ -56,12 +56,28 @@ def scan_product(request):
 
 def handle_scan_redirect(request):
     code = request.GET.get("code", "").strip()
-    try:
-        product = Product.objects.get(barcode=code)
-        return render(request, "inventory/scan_result.html", {"product": product})
-    except Product.DoesNotExist:
+
+    if code.startswith("INV-"):
+        try:
+            product = Product.objects.get(barcode=code)
+            return render(request, "inventory/scan_result.html", {"product": product})
+        except Product.DoesNotExist:
+            return render(request, "inventory/scan_product.html", {
+                "error": f"No product found for code: {code}"
+            })
+
+    elif code.startswith("RCPT-"):
+        try:
+            sale = Sale.objects.get(receipt_code=code)
+            return redirect("accounting:sale_detail", pk=sale.pk)  # You must define this URL/view
+        except Sale.DoesNotExist:
+            return render(request, "inventory/scan_product.html", {
+                "error": f"No receipt found for code: {code}"
+            })
+
+    else:
         return render(request, "inventory/scan_product.html", {
-            "error": f"No product found for code: {code}"
+            "error": "Unrecognized code format."
         })
 
 class ServiceWorkerView(View):
@@ -1110,20 +1126,28 @@ def sale_list_view(request):
     return render(request, 'dashboard/sale_list.html', context)
 
 
+from .utils.barcodes import generate_barcode_image
+
 @login_required
 def sale_receipt_pdf(request, sale_id):
     sale = get_object_or_404(Sale.objects.select_related('store__company_profile').prefetch_related('items__product'), pk=sale_id)
-
-    company = sale.store.company_profile  # ✅ Get company from the store
+    company = sale.store.company_profile
 
     logo_url = ""
     if company and company.logo:
         logo_url = request.build_absolute_uri(company.logo.url)
 
+    # ✅ Generate barcode
+    barcode_url = ""
+    if sale.receipt_number:
+        barcode_path = generate_barcode_image(sale.receipt_number, f"receipt_{sale.id}")
+        barcode_url = request.build_absolute_uri(barcode_path)
+
     context = {
         'sale': sale,
         'company': company,
         'logo_url': logo_url,
+        'barcode_url': barcode_url,
     }
 
     html_string = render_to_string('pdf/sale_receipt.html', context)

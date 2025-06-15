@@ -106,5 +106,12 @@
   {% endif %}
 
   <p class="text-center">Thank you for your business!</p>
+  {% if barcode_url %}
+  <div class="text-center mt-4">
+    <img src="{{ barcode_url }}" alt="Receipt Barcode" style="max-height: 80px;" />
+    <p style="font-size: 12px; color: #888;">Scan to view receipt</p>
+  </div>
+{% endif %}
+
 </body>
 </html>

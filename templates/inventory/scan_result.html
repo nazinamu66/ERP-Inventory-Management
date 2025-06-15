@@ -1,25 +1,44 @@
 {% extends 'dashboard/base.html' %}
-{% block title %}Product Scanned{% endblock %}
+{% block title %}Scan Result{% endblock %}
 
 {% block content %}
-<h4>✅ Product Found</h4>
+<h4>📦 Scan Result</h4>
 
-<div class="card shadow-sm p-3 mb-3">
-  <h5 class="card-title">{{ product.name }}</h5>
+{% if product %}
+  <div class="card shadow-sm p-3 mb-3">
+    <h5 class="card-title">{{ product.name }}</h5>
 
-  {% if product.image %}
-    <img src="{{ product.image.url }}" class="img-fluid mb-2" style="max-height: 200px;" />
-  {% endif %}
+    {% if product.image %}
+      <img src="{{ product.image.url }}" class="img-fluid mb-2" style="max-height: 200px;" />
+    {% endif %}
 
-  <p><strong>Code:</strong> {{ product.barcode }}</p>
+    <p><strong>Barcode:</strong> {{ product.barcode }}</p>
 
-  <div class="d-grid gap-2">
-    <a href="{% url 'inventory:product_detail' product.pk %}" class="btn btn-outline-primary">🔎 View Product</a>
-    <a href="{% url 'inventory:invoice_create' %}?product={{ product.pk }}" class="btn btn-outline-success">🧾 Add to Invoice</a>
-    <a href="{% url 'inventory:stock_adjustment_create' %}?product={{ product.pk }}" class="btn btn-outline-warning">🛠️ Adjust Stock</a>
-    <a href="{% url 'inventory:stock_transfer_create' %}?product={{ product.pk }}" class="btn btn-outline-secondary">📦 Transfer Stock</a>
+    <div class="d-grid gap-2">
+      <a href="{% url 'inventory:product_detail' product.pk %}" class="btn btn-outline-primary">🔎 View Product</a>
+      <a href="{% url 'inventory:invoice_create' %}?product={{ product.pk }}" class="btn btn-outline-success">🧾 Add to Invoice</a>
+      <a href="{% url 'inventory:stock_adjustment_create' %}?product={{ product.pk }}" class="btn btn-outline-warning">🛠️ Adjust Stock</a>
+      <a href="{% url 'inventory:stock_transfer_create' %}?product={{ product.pk }}" class="btn btn-outline-secondary">📦 Transfer Stock</a>
+    </div>
   </div>
-</div>
 
-<a href="{% url 'inventory:scan_product' %}" class="btn btn-link mt-3">🔁 Scan Another</a>
+{% elif sale %}
+  <div class="card shadow-sm p-3 mb-3">
+    <h5 class="card-title">🧾 {{ sale.sale_type|capfirst }}: {{ sale.receipt_number }}</h5>
+    <p><strong>Customer:</strong> {{ sale.customer.name }}</p>
+    <p><strong>Date:</strong> {{ sale.sale_date|date:"M d, Y H:i" }}</p>
+    <p><strong>Store:</strong> {{ sale.store.name }}</p>
+    <p><strong>Total:</strong> ₦{{ sale.total_amount|floatformat:2 }}</p>
+
+    <a href="{% url 'inventory:sale_detail' sale.pk %}" class="btn btn-outline-primary mt-2">🔍 View Sale</a>
+  </div>
+
+{% elif error %}
+  <div class="alert alert-danger">{{ error }}</div>
+
+{% else %}
+  <div class="alert alert-warning">Unexpected scan result.</div>
+{% endif %}
+
+<a href="{% url 'inventory:scan_product' %}" class="btn btn-link mt-4">🔁 Scan Another</a>
 {% endblock %}

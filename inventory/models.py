@@ -145,10 +145,14 @@ class Supplier(models.Model):
 
 
 from django.core.exceptions import ValidationError
+from .utils.barcodes import generate_barcode_image
+import os
+import uuid
 
 class Product(models.Model):
     name = models.CharField(max_length=200)
     sku = models.CharField(max_length=100, unique=True, blank=True)
+    barcode = models.CharField(max_length=50, unique=True, blank=True, null=True)
     description = models.TextField(blank=True)
     category = models.CharField(max_length=100, blank=True)
     unit = models.CharField(max_length=20, default='pcs')
@@ -157,7 +161,7 @@ class Product(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
+    supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True)
     reorder_level = models.PositiveIntegerField(default=0)
 
     created_by = models.ForeignKey(
@@ -170,17 +174,26 @@ class Product(models.Model):
     )
 
     def clean(self):
-        # ✅ Check for another active product with the same name
+        # ✅ Prevent duplicate active product names
         conflict = Product.objects.filter(name__iexact=self.name.strip(), is_active=True)
         if self.pk:
             conflict = conflict.exclude(pk=self.pk)
-
         if conflict.exists():
             raise ValidationError(f"A product named '{self.name}' already exists and is active.")
 
+
     def save(self, *args, **kwargs):
-        self.full_clean()  # 🧼 Triggers clean()
+        # ✅ Auto-generate barcode if not already set
+        if not self.barcode:
+            self.barcode = f"INV-{uuid.uuid4().hex[:8].upper()}"
+
+        self.full_clean()  # Triggers clean() for duplicate name check
         super().save(*args, **kwargs)
+
+        # ✅ Generate barcode image after product has an ID
+        image_path = os.path.join(settings.MEDIA_ROOT, 'barcodes', f"{self.pk}.png")
+        generate_barcode_image(self.barcode, image_path)
+
 
     def __str__(self):
         return f"{self.name} ({self.sku})"

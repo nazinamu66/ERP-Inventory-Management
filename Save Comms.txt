@@ -85,5 +85,3 @@ Python  52323 Capo    8u  IPv4 0xeb1558835aa05a98      0t0  TCP localhost:irdmi-
 (venv) venvCapo@Capos ERP-Inventory-Management % python manage.py runserver 0.0.0.0:8000
 Watching for file changes with StatReloader
 Performing system checks...
-
-
