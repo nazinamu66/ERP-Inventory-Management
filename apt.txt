@@ -1,0 +1,6 @@
+libpangocairo-1.0-0
+libjpeg-dev
+libpng-dev
+libpango1.0-0
+libcairo2
+libgdk-pixbuf2.0-0
