@@ -15,10 +15,10 @@ services:
         fromDatabase:
           name: inventrax-db
           property: connectionString
-    disks:                           # ✅ FIXED THIS KEY
+    disks:
       - name: media
         mountPath: /media
-        sizeGB: 1                    # ✅ Make sure the disk is mounted at /media
+        sizeGB: 1
 
 databases:
   - name: inventrax-db
