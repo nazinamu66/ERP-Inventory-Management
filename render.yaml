@@ -15,6 +15,9 @@ services:
         fromDatabase:
           name: inventrax-db
           property: connectionString
-
 databases:
   - name: inventrax-db
+disk:
+      - name: media
+        mountPath: /media
+        sizeGB: 1
