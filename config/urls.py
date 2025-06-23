@@ -51,6 +51,11 @@ urlpatterns = [
     path('dashboard/', include(('inventory.urls', 'inventory'), namespace='inventory')),
     path("manifest.json", TemplateView.as_view(template_name="manifest.json", content_type="application/manifest+json")),
     
+    
 
 ]
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+from sendfile import sendfile
+
+urlpatterns += [
+    path("media/<path:path>", lambda request, path: sendfile(request, path)),
+]
