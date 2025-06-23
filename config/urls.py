@@ -54,8 +54,4 @@ urlpatterns = [
     
 
 ]
-from django_sendfile import sendfile
-
-urlpatterns += [
-    path("media/<path:path>", lambda request, path: sendfile(request, path)),
-]
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

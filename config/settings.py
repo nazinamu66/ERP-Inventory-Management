@@ -40,7 +40,6 @@ ALLOWED_HOSTS = ['*']
 # Application definition
 
 INSTALLED_APPS = [
-    'sendfile',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -176,7 +175,3 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = '/media'
-# Sendfile configuration
-SENDFILE_BACKEND = 'sendfile.backends.simple'
-SENDFILE_ROOT = MEDIA_ROOT
-SENDFILE_URL = MEDIA_URL
