@@ -1133,9 +1133,9 @@ def sale_receipt_pdf(request, sale_id):
     sale = get_object_or_404(Sale.objects.select_related('store__company_profile').prefetch_related('items__product'), pk=sale_id)
     company = sale.store.company_profile
 
-    logo_url = ""
-    if company and company.logo:
-        logo_url = request.build_absolute_uri(company.logo.url)
+    from utils.pdf import get_base64_image
+    logo_url = get_base64_image(company.logo) if company and company.logo else ""
+
 
     # ✅ Generate barcode
     barcode_url = ""
