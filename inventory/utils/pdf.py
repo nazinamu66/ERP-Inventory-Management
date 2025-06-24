@@ -1,13 +1,16 @@
 import base64
-from django.core.files.storage import default_storage
+from pathlib import Path
 
 def get_base64_image(image_field):
-    if not image_field:
-        return ""
-
     try:
-        with default_storage.open(image_field.name, 'rb') as image_file:
-            encoded = base64.b64encode(image_file.read()).decode('utf-8')
-            return f"data:{image_field.file.content_type};base64,{encoded}"
+        file_path = Path(image_field.path)
+        if not file_path.exists():
+            return ""
+
+        with open(file_path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+            file_type = file_path.suffix[1:]  # e.g. 'jpg', 'png'
+            return f"data:image/{file_type};base64,{encoded_string}"
     except Exception as e:
+        print("🔴 Base64 encode error:", e)
         return ""
