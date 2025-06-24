@@ -1128,34 +1128,42 @@ def sale_list_view(request):
 
 from .utils.barcodes import generate_barcode_image
 
+import logging
+logger = logging.getLogger(__name__)
+
 @login_required
 def sale_receipt_pdf(request, sale_id):
-    sale = get_object_or_404(Sale.objects.select_related('store__company_profile').prefetch_related('items__product'), pk=sale_id)
-    company = sale.store.company_profile
+    try:
+        sale = get_object_or_404(Sale.objects.select_related('store__company_profile').prefetch_related('items__product'), pk=sale_id)
+        company = sale.store.company_profile
 
-    from utils.pdf import get_base64_image
-    logo_url = get_base64_image(company.logo) if company and company.logo else ""
+        from utils.pdf import get_base64_image
+        logo_url = get_base64_image(company.logo) if company and company.logo else ""
 
+        # ✅ Generate barcode
+        barcode_url = ""
+        if sale.receipt_number:
+            barcode_path = generate_barcode_image(sale.receipt_number, f"receipt_{sale.id}")
+            barcode_url = request.build_absolute_uri(barcode_path)
 
-    # ✅ Generate barcode
-    barcode_url = ""
-    if sale.receipt_number:
-        barcode_path = generate_barcode_image(sale.receipt_number, f"receipt_{sale.id}")
-        barcode_url = request.build_absolute_uri(barcode_path)
+        context = {
+            'sale': sale,
+            'company': company,
+            'logo_url': logo_url,
+            'barcode_url': barcode_url,
+        }
 
-    context = {
-        'sale': sale,
-        'company': company,
-        'logo_url': logo_url,
-        'barcode_url': barcode_url,
-    }
+        html_string = render_to_string('pdf/sale_receipt.html', context)
+        pdf_file = HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
 
-    html_string = render_to_string('pdf/sale_receipt.html', context)
-    pdf_file = HTML(string=html_string, base_url=request.build_absolute_uri()).write_pdf()
+        response = HttpResponse(pdf_file, content_type='application/pdf')
+        response['Content-Disposition'] = f'filename="Receipt-{sale.receipt_number}.pdf"'
+        return response
 
-    response = HttpResponse(pdf_file, content_type='application/pdf')
-    response['Content-Disposition'] = f'filename="Receipt-{sale.receipt_number}.pdf"'
-    return response
+    except Exception as e:
+        # 👇 Log and print the error
+        logger.exception("Error generating receipt PDF")
+        return HttpResponse(f"❌ Error: {str(e)}", status=500)
 
 @login_required
 def sale_detail_view(request, pk):
