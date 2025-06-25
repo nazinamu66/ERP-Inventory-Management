@@ -227,7 +227,7 @@ class ProductWithStockForm(forms.ModelForm):
 
     class Meta:
         model = Product
-        fields = ['name', 'description', 'category', 'unit', 'reorder_level', 'is_active']
+        fields = ['name', 'description', 'category', 'unit', 'reorder_level', 'image', 'is_active']
         widgets = {
             'description': forms.Textarea(attrs={'rows': 3}),
         }
