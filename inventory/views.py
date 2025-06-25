@@ -1126,7 +1126,7 @@ def sale_list_view(request):
     return render(request, 'dashboard/sale_list.html', context)
 
 
-from .utils.barcodes import generate_barcode_image
+from inventory.utils.barcodes import generate_barcode_image
 
 import logging
 logger = logging.getLogger(__name__)
