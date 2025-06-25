@@ -7,6 +7,7 @@ from .views import (
     stock_transfer_create,     # ✅ was wrongly named as stock_transfer_view
     approve_transfer,
     reject_transfer,
+    export_product_barcodes
 )
 
 
@@ -61,6 +62,8 @@ urlpatterns = [
 
     path("scan/", views.scan_product, name="scan_product"),
     path("product/scan/", views.handle_scan_redirect, name="handle_scan_redirect"),
+    path('products/export-barcodes/', export_product_barcodes, name='export_barcodes'),
+
     
     path('quotations/new/', views.quotation_create, name='quotation_create'),
     path('quotations/', views.quotation_list, name='quotation_list'),

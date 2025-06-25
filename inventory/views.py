@@ -86,6 +86,31 @@ def handle_scan_redirect(request):
             "error": "Unrecognized code format."
         })
 
+from django.shortcuts import render
+from .models import Product
+from django.contrib.auth.decorators import login_required
+from inventory.utils.barcodes import generate_barcode_image
+
+@login_required
+def export_product_barcodes(request):
+    products = Product.objects.filter(is_active=True)
+
+    barcode_data = []
+    for product in products:
+        if product.barcode:
+            barcode_path = generate_barcode_image(product.barcode, f"barcode_{product.id}")
+            barcode_url = request.build_absolute_uri(barcode_path)
+            barcode_data.append({
+                "name": product.name,
+                "sku": product.sku,
+                "barcode": product.barcode,
+                "barcode_url": barcode_url,
+            })
+
+    return render(request, "dashboard/export_barcodes.html", {
+        "products": barcode_data
+    })
+
 
 class ServiceWorkerView(View):
     def get(self, request, *args, **kwargs):
