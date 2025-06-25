@@ -1126,10 +1126,10 @@ def sale_list_view(request):
     return render(request, 'dashboard/sale_list.html', context)
 
 
+from inventory.utils.pdf import get_base64_image
 from inventory.utils.barcodes import generate_barcode_image
 
-import logging
-logger = logging.getLogger(__name__)
+...
 
 @login_required
 def sale_receipt_pdf(request, sale_id):
@@ -1137,14 +1137,14 @@ def sale_receipt_pdf(request, sale_id):
         sale = get_object_or_404(Sale.objects.select_related('store__company_profile').prefetch_related('items__product'), pk=sale_id)
         company = sale.store.company_profile
 
-        from inventory.utils.pdf import get_base64_image
         logo_url = get_base64_image(company.logo) if company and company.logo else ""
 
-        # ✅ Generate barcode
+        # ✅ Generate barcode and convert to base64
         barcode_url = ""
         if sale.receipt_number:
             barcode_path = generate_barcode_image(sale.receipt_number, f"receipt_{sale.id}")
-            barcode_url = request.build_absolute_uri(barcode_path)
+            abs_path = os.path.join(settings.MEDIA_ROOT, "barcodes", f"receipt_{sale.id}.png")
+            barcode_url = get_base64_image(abs_path)
 
         context = {
             'sale': sale,
@@ -1161,7 +1161,6 @@ def sale_receipt_pdf(request, sale_id):
         return response
 
     except Exception as e:
-        # 👇 Log and print the error
         logger.exception("Error generating receipt PDF")
         return HttpResponse(f"❌ Error: {str(e)}", status=500)
 
