@@ -149,10 +149,12 @@ from .utils.barcodes import generate_barcode_image
 import os
 import uuid
 
+
 class Product(models.Model):
     name = models.CharField(max_length=200)
     sku = models.CharField(max_length=100, unique=True, blank=True)
     barcode = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    image = models.ImageField(upload_to='product_images/', null=True, blank=True)  # ✅ NEW
     description = models.TextField(blank=True)
     category = models.CharField(max_length=100, blank=True)
     unit = models.CharField(max_length=20, default='pcs')
@@ -181,19 +183,20 @@ class Product(models.Model):
         if conflict.exists():
             raise ValidationError(f"A product named '{self.name}' already exists and is active.")
 
-
     def save(self, *args, **kwargs):
-        # ✅ Auto-generate barcode if not already set
+        is_new = self.pk is None
+
+        # ✅ Auto-generate barcode if missing
         if not self.barcode:
             self.barcode = f"INV-{uuid.uuid4().hex[:8].upper()}"
 
-        self.full_clean()  # Triggers clean() for duplicate name check
+        self.full_clean()  # Validate fields
         super().save(*args, **kwargs)
 
-        # ✅ Generate barcode image after product has an ID
-        image_path = os.path.join(settings.MEDIA_ROOT, 'barcodes', f"{self.pk}.png")
-        generate_barcode_image(self.barcode, image_path)
-
+        # ✅ Generate barcode image only once when first saved
+        if is_new:
+            output_path = os.path.join(settings.MEDIA_ROOT, 'barcodes', f"{self.pk}.png")
+            generate_barcode_image(self.barcode, output_path)
 
     def __str__(self):
         return f"{self.name} ({self.sku})"

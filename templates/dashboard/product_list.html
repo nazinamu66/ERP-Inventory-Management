@@ -6,6 +6,9 @@
     <h2 class="mb-2 mb-md-0">📦 Products</h2>
     <a href="{% url 'inventory:product_create' %}" class="btn btn-success">➕ Add Product</a>
 </div>
+<a href="{% url 'inventory:export_barcodes' %}" class="btn btn-outline-dark float-end">
+  🏷️ Export Barcodes
+</a>
 
 {% if products %}
     <div class="table-responsive">
