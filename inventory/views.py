@@ -26,6 +26,7 @@ from weasyprint import HTML
 from .forms import CustomerForm
 from django.template.loader import render_to_string
 import weasyprint
+import uuid
 from .forms import SaleReturnForm, SaleReturnItemFormSet, SaleReturnItem
 from django.forms import inlineformset_factory
 from django.http import HttpResponseForbidden
@@ -57,7 +58,7 @@ def scan_product(request):
 def handle_scan_redirect(request):
     code = request.GET.get("code", "").strip()
 
-    if code.startswith("INV-"):
+    if code.startswith("PRD-"):  # ✅ Product barcode
         try:
             product = Product.objects.get(barcode=code)
             return render(request, "inventory/scan_result.html", {"product": product})
@@ -66,19 +67,25 @@ def handle_scan_redirect(request):
                 "error": f"No product found for code: {code}"
             })
 
-    elif code.startswith("RCPT-"):
+    elif code.startswith("RCPT-") or code.startswith("INV-"):  # ✅ Receipt or Invoice
         try:
-            sale = Sale.objects.get(receipt_code=code)
-            return redirect("accounting:sale_detail", pk=sale.pk)  # You must define this URL/view
+            sale = Sale.objects.get(receipt_number=code)
+            return redirect("inventory:sale_detail", pk=sale.pk)  # ✅ or 'accounting:sale_detail' if applicable
         except Sale.DoesNotExist:
             return render(request, "inventory/scan_product.html", {
-                "error": f"No receipt found for code: {code}"
+                "error": f"No receipt or invoice found for code: {code}"
             })
+
+    elif code.startswith("PO-"):  # (Optional future)
+        return render(request, "inventory/scan_product.html", {
+            "error": "Scanning Purchase Orders is not supported yet."
+        })
 
     else:
         return render(request, "inventory/scan_product.html", {
             "error": "Unrecognized code format."
         })
+
 
 class ServiceWorkerView(View):
     def get(self, request, *args, **kwargs):
@@ -1442,10 +1449,14 @@ def product_create(request):
         if form.is_valid():
             product = form.save(commit=False)
 
-            # Generate SKU automatically
+            # 🔢 Generate SKU automatically
             last_product = Product.objects.order_by('-id').first()
             next_id = last_product.id + 1 if last_product else 1
             product.sku = f"PRD-{next_id:03d}"
+
+            # 🧾 Generate barcode with PRD- prefix if not already
+            if not product.barcode:
+                product.barcode = f"PRD-{uuid.uuid4().hex[:8].upper()}"
 
             product.created_by = request.user
             product.save()
@@ -1456,7 +1467,7 @@ def product_create(request):
             store = form.cleaned_data.get('store')
 
             if quantity and store:
-                # Record inventory and accounting
+                # 💸 Record inventory and accounting
                 txn = record_transaction_by_slug(
                     source_slug='opening-balance',
                     destination_slug='inventory-assets',
@@ -1470,7 +1481,7 @@ def product_create(request):
                     store=store,
                     quantity=quantity,
                     cost_price=cost_price,
-                    transaction=txn  # 🧾 Track for reversal
+                    transaction=txn
                 )
 
             AuditLog.objects.create(
@@ -1486,6 +1497,7 @@ def product_create(request):
         form = ProductWithStockForm(user=request.user)
 
     return render(request, 'dashboard/product_form.html', {'form': form, 'product': None})
+
 
 @login_required
 def product_edit(request, pk):
